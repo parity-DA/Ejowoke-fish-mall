@@ -1,182 +1,193 @@
-import {
-  Body,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Link,
-  Preview,
-  Text,
-  Section,
-  Hr,
-} from 'npm:@react-email/components@0.0.22';
-import * as React from 'npm:react@18.3.1';
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { Resend } from "npm:resend@4.0.0";
+import React from 'npm:react@18.3.1';
+import { renderAsync } from 'npm:@react-email/components@0.0.22';
+import { InvitationEmail } from './_templates/invitation-email.tsx';
 
-interface InvitationEmailProps {
-  invitedEmail: string;
-  temporaryPassword: string;
-  role: string;
-  inviterName: string;
-  loginUrl: string;
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface InviteUserRequest {
+  email: string;
+  role: 'super_admin' | 'admin' | 'user';
+  inviterName?: string;
 }
 
-export const InvitationEmail = ({
-  invitedEmail,
-  temporaryPassword,
-  role,
-  inviterName,
-  loginUrl,
-}: InvitationEmailProps) => {
-  const roleDisplay = role.replace('_', ' ').split(' ').map(w => 
-    w.charAt(0).toUpperCase() + w.slice(1)
-  ).join(' ');
+const handler = async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
 
-  return (
-    <Html>
-      <Head />
-      <Preview>You've been invited to EJowoke Fish Mall & Logistics</Preview>
-      <Body style={main}>
-        <Container style={container}>
-          <Heading style={h1}>Welcome to EJowoke Fish Mall & Logistics!</Heading>
-          
-          <Text style={text}>
-            Hello,
-          </Text>
-          
-          <Text style={text}>
-            <strong>{inviterName}</strong> has invited you to join <strong>EJowoke Fish Mall & Logistics</strong> with <strong>{roleDisplay}</strong> access.
-          </Text>
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
 
-          <Section style={loginSection}>
-            <Text style={text}>
-              <strong>Your login credentials:</strong>
-            </Text>
-            <Text style={credentialText}>
-              <strong>Email:</strong> {invitedEmail}
-            </Text>
-            <Text style={credentialText}>
-              <strong>Temporary Password:</strong> <code style={code}>{temporaryPassword}</code>
-            </Text>
-          </Section>
+    // Get the authorization header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authorization required" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
-          <Link
-            href={loginUrl}
-            target="_blank"
-            style={button}
-          >
-            Login to Your Account
-          </Link>
+    // Verify the user is authenticated and is super admin
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
-          <Hr style={hr} />
+    // Check if user is super admin
+    const { data: roleData, error: roleError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
 
-          <Text style={smallText}>
-            <strong>Important:</strong> Please change your password after your first login for security reasons.
-          </Text>
+    if (roleError || roleData?.role !== 'super_admin') {
+      return new Response(
+        JSON.stringify({ error: "Insufficient permissions. Only super admins can invite users." }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
-          <Text style={smallText}>
-            Your role as <strong>{roleDisplay}</strong> gives you access to manage the fish mall operations including inventory, sales, customers, and reports.
-          </Text>
+    const { email, role, inviterName }: InviteUserRequest = await req.json();
 
-          <Text style={footer}>
-            If you have any questions, please contact your administrator.
-            <br />
-            <strong>EJowoke Fish Mall & Logistics</strong>
-          </Text>
-        </Container>
-      </Body>
-    </Html>
-  );
+    if (!email || !role) {
+      return new Response(
+        JSON.stringify({ error: "Email and role are required" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Generate a temporary password
+    const tempPassword = generatePassword();
+
+    // Create user account using Supabase Admin API
+    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+      email: email,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: {
+        invited: true,
+        invited_by: user.id,
+        role: role
+      }
+    });
+
+    if (createError) {
+      console.error("Error creating user:", createError);
+      return new Response(
+        JSON.stringify({ error: `Failed to create user: ${createError.message}` }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Assign role to the new user using the database function
+    const { error: roleAssignError } = await supabase.rpc('assign_user_role', {
+      target_user_id: newUser.user.id,
+      new_role: role,
+      assigner_id: user.id
+    });
+
+    if (roleAssignError) {
+      console.error("Error assigning role:", roleAssignError);
+    }
+
+    // Create profile for the new user
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert({
+        user_id: newUser.user.id,
+        email: email,
+        full_name: '', // Will be filled by user
+      });
+
+    if (profileError) {
+      console.error("Error creating profile:", profileError);
+    }
+
+    // Store invitation record
+    const { error: inviteError } = await supabase
+      .from('user_invitations')
+      .insert({
+        email: email,
+        role: role,
+        temporary_password: tempPassword,
+        invited_by: user.id,
+        status: 'sent'
+      });
+
+    if (inviteError) {
+      console.error("Error storing invitation:", inviteError);
+    }
+
+    // Send invitation email
+    const html = await renderAsync(
+      React.createElement(InvitationEmail, {
+        invitedEmail: email,
+        temporaryPassword: tempPassword,
+        role: role,
+        inviterName: inviterName || 'Administrator',
+        loginUrl: `${Deno.env.get('SUPABASE_URL')?.replace('/rest/v1', '')}/auth/v1/authorize?redirect_to=${encodeURIComponent(req.headers.get('origin') || '')}/auth`
+      })
+    );
+
+    const emailResult = await resend.emails.send({
+      from: "EJowoke Fish Mall <onboarding@resend.dev>",
+      to: [email],
+      subject: `You've been invited to EJowoke Fish Mall`,
+      html: html,
+    });
+
+    console.log("Invitation sent successfully:", emailResult);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "User invited successfully",
+        user: {
+          id: newUser.user.id,
+          email: email,
+          role: role
+        },
+        temporaryPassword: tempPassword
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+
+  } catch (error: any) {
+    console.error("Error in invite-user function:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
 };
 
-export default InvitationEmail;
+function generatePassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
+  let password = '';
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
 
-const main = {
-  backgroundColor: '#f6f9fc',
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
-};
-
-const container = {
-  backgroundColor: '#ffffff',
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  marginBottom: '64px',
-  maxWidth: '580px',
-};
-
-const h1 = {
-  color: '#333',
-  fontSize: '24px',
-  fontWeight: 'bold',
-  margin: '40px 0',
-  padding: '0 40px',
-  textAlign: 'center' as const,
-};
-
-const text = {
-  color: '#333',
-  fontSize: '16px',
-  lineHeight: '26px',
-  padding: '0 40px',
-  margin: '16px 0',
-};
-
-const credentialText = {
-  color: '#333',
-  fontSize: '14px',
-  lineHeight: '24px',
-  padding: '0 40px',
-  margin: '8px 0',
-};
-
-const smallText = {
-  color: '#666',
-  fontSize: '14px',
-  lineHeight: '22px',
-  padding: '0 40px',
-  margin: '16px 0',
-};
-
-const loginSection = {
-  backgroundColor: '#f8f9fa',
-  border: '1px solid #e9ecef',
-  borderRadius: '8px',
-  margin: '24px 40px',
-  padding: '20px',
-};
-
-const button = {
-  backgroundColor: '#007cba',
-  borderRadius: '8px',
-  color: '#fff',
-  display: 'block',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  lineHeight: '50px',
-  margin: '24px 40px',
-  padding: '0 20px',
-  textAlign: 'center' as const,
-  textDecoration: 'none',
-};
-
-const hr = {
-  borderColor: '#e9ecef',
-  margin: '20px 40px',
-};
-
-const code = {
-  backgroundColor: '#f4f4f4',
-  border: '1px solid #ddd',
-  borderRadius: '4px',
-  color: '#333',
-  fontFamily: 'Consolas, "Courier New", monospace',
-  fontSize: '14px',
-  padding: '2px 6px',
-};
-
-const footer = {
-  color: '#898989',
-  fontSize: '12px',
-  lineHeight: '22px',
-  margin: '32px 40px 0',
-  textAlign: 'center' as const,
-};
+serve(handler);
