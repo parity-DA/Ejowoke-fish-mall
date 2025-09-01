@@ -213,7 +213,7 @@ export function Layout({ children }: LayoutProps) {
             
             <div className="flex items-center space-x-4">
               <div className="text-sm text-muted-foreground hidden sm:block">
-                Welcome back, <span className="font-medium text-foreground">{user?.email?.split('@')[0]}</span>
+                Welcome back, <span className="font-medium text-foreground">{user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0]}</span>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -221,7 +221,7 @@ export function Layout({ children }: LayoutProps) {
                     <div className="h-6 w-6 rounded-full bg-gradient-primary flex items-center justify-center">
                       <User className="h-3 w-3 text-white" />
                     </div>
-                    <span className="hidden sm:inline text-sm">{user?.email}</span>
+                    <span className="hidden sm:inline text-sm">{user?.user_metadata?.full_name || user?.email}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
