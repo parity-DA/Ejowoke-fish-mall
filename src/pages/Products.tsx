@@ -24,6 +24,7 @@ export default function Products() {
     cost_price: 0,
     selling_price: 0,
     stock_quantity: 0,
+    total_pieces: 0,
     minimum_stock: 0,
     barcode: "",
   });
@@ -46,6 +47,7 @@ export default function Products() {
         cost_price: 0,
         selling_price: 0,
         stock_quantity: 0,
+        total_pieces: 0,
         minimum_stock: 0,
         barcode: "",
       });
@@ -136,11 +138,11 @@ export default function Products() {
                   <div>
                     <Label htmlFor="total-pieces">Total Pieces</Label>
                     <Input
+                      id="total-pieces"
                       type="number"
-                      value={Math.round((newProduct.stock_quantity || 0) / 1.2)}
-                      readOnly
-                      className="bg-muted"
-                      placeholder="Auto-calculated"
+                      value={newProduct.total_pieces || ""}
+                      onChange={(e) => setNewProduct({ ...newProduct, total_pieces: Number(e.target.value) })}
+                      placeholder={Math.round((newProduct.stock_quantity || 0) / 1.2).toString()}
                     />
                   </div>
                 </div>
@@ -321,7 +323,7 @@ export default function Products() {
                            {product.stock_quantity} kg
                          </Badge>
                          <div className="text-xs text-muted-foreground">
-                           ≈ {Math.round(product.stock_quantity / 1.2)} pcs
+                           {product.total_pieces ? `${product.total_pieces} pcs` : `≈ ${Math.round(product.stock_quantity / 1.2)} pcs`}
                          </div>
                        </div>
                      </TableCell>

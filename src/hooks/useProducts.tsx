@@ -11,6 +11,7 @@ export interface Product {
   cost_price: number;
   selling_price: number;
   stock_quantity: number;
+  total_pieces?: number;
   minimum_stock: number;
   barcode?: string;
   created_at: string;
