@@ -207,7 +207,7 @@ export const useStock = () => {
   }, [user]);
 
   // Real-time subscriptions
-  useEffect(() => {.
+  useEffect(() => {
     if (!user) return;
 
     const channel = supabase
