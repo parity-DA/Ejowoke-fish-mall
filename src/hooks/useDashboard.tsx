@@ -7,8 +7,8 @@ export interface DashboardStats {
   todaySales: number;
   totalSales: number;
   totalCustomers: number;
-  totalProducts: number;
-  lowStockProducts: number;
+  totalInventoryItems: number;
+  lowStockItems: number;
   pendingSales: number;
   recentSales: Array<{
     id: string;
@@ -17,7 +17,7 @@ export interface DashboardStats {
     time: string;
     status: string;
   }>;
-  topProducts: Array<{
+  topItems: Array<{
     name: string;
     total_sold: number;
     revenue: number;
@@ -35,11 +35,11 @@ export const useDashboard = () => {
     todaySales: 0,
     totalSales: 0,
     totalCustomers: 0,
-    totalProducts: 0,
-    lowStockProducts: 0,
+    totalInventoryItems: 0,
+    lowStockItems: 0,
     pendingSales: 0,
     recentSales: [],
-    topProducts: [],
+    topItems: [],
     lowStockAlerts: [],
   });
   const [loading, setLoading] = useState(true);
@@ -58,9 +58,9 @@ export const useDashboard = () => {
         salesResult,
         todaySalesResult,
         customersResult,
-        productsResult,
+        inventoryResult,
         recentSalesResult,
-        topProductsResult,
+        topItemsResult,
         lowStockResult
       ] = await Promise.all([
         // Total sales amount
@@ -69,7 +69,7 @@ export const useDashboard = () => {
           .select('total_amount')
           .eq('user_id', user.id)
           .eq('status', 'completed'),
-        
+
         // Today's sales
         supabase
           .from('sales')
@@ -77,19 +77,19 @@ export const useDashboard = () => {
           .eq('user_id', user.id)
           .eq('status', 'completed')
           .gte('created_at', new Date().toISOString().split('T')[0]),
-        
+
         // Total customers
         supabase
           .from('customers')
           .select('id', { count: 'exact' })
           .eq('user_id', user.id),
-        
-        // Products and low stock
+
+        // Inventory items and low stock
         supabase
-          .from('products')
+          .from('inventory')
           .select('*')
           .eq('user_id', user.id),
-        
+
         // Recent sales
         supabase
           .from('sales')
@@ -103,17 +103,17 @@ export const useDashboard = () => {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(5),
-        
-        // Top products (simplified - in real app you'd aggregate sale_items)
+
+        // Top items (simplified - in real app you'd aggregate sale_items)
         supabase
-          .from('products')
+          .from('inventory')
           .select('id, name')
           .eq('user_id', user.id)
           .limit(4),
-        
-        // Low stock products - we'll filter this in JavaScript since Supabase doesn't support column-to-column comparison directly
+
+        // Low stock items - we'll filter this in JavaScript since Supabase doesn't support column-to-column comparison directly
         supabase
-          .from('products')
+          .from('inventory')
           .select('*')
           .eq('user_id', user.id)
       ]);
@@ -121,9 +121,9 @@ export const useDashboard = () => {
       if (salesResult.error) throw salesResult.error;
       if (todaySalesResult.error) throw todaySalesResult.error;
       if (customersResult.error) throw customersResult.error;
-      if (productsResult.error) throw productsResult.error;
+      if (inventoryResult.error) throw inventoryResult.error;
       if (recentSalesResult.error) throw recentSalesResult.error;
-      if (topProductsResult.error) throw topProductsResult.error;
+      if (topItemsResult.error) throw topItemsResult.error;
       if (lowStockResult.error) throw lowStockResult.error;
 
       const totalSalesAmount = salesResult.data?.reduce((sum, sale) => sum + sale.total_amount, 0) || 0;
@@ -137,30 +137,30 @@ export const useDashboard = () => {
         status: sale.status
       })) || [];
 
-      const topProducts = topProductsResult.data?.map((product, index) => ({
-        name: product.name,
+      const topItems = topItemsResult.data?.map((item, index) => ({
+        name: item.name,
         total_sold: Math.floor(Math.random() * 100) + 50, // Mock data for now
         revenue: Math.floor(Math.random() * 500000) + 100000 // Mock data for now
       })) || [];
 
-      const lowStockAlerts = lowStockResult.data?.filter(product => 
-        product.stock_quantity <= product.minimum_stock
-      ).map(product => ({
-        id: product.id,
-        name: product.name,
-        current_stock: product.stock_quantity,
-        minimum_stock: product.minimum_stock
+      const lowStockAlerts = lowStockResult.data?.filter(item =>
+        item.stock_quantity <= item.minimum_stock
+      ).map(item => ({
+        id: item.id,
+        name: item.name,
+        current_stock: item.stock_quantity,
+        minimum_stock: item.minimum_stock
       })) || [];
 
       setStats({
         todaySales: todaySalesAmount,
         totalSales: totalSalesAmount,
         totalCustomers: customersResult.count || 0,
-        totalProducts: productsResult.data?.length || 0,
-        lowStockProducts: lowStockAlerts.length,
+        totalInventoryItems: inventoryResult.data?.length || 0,
+        lowStockItems: lowStockAlerts.length,
         pendingSales: 0, // Would need separate query
         recentSales,
-        topProducts,
+        topItems,
         lowStockAlerts,
       });
     } catch (error: any) {
@@ -201,11 +201,11 @@ export const useDashboard = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'products',
+          table: 'inventory',
           filter: `user_id=eq.${user.id}`
         },
         () => {
-          fetchDashboardStats(); // Refresh stats when products change
+          fetchDashboardStats(); // Refresh stats when inventory changes
         }
       )
       .subscribe();

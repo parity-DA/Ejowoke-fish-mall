@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { useProducts } from "@/hooks/useProducts";
+import { useInventory } from "@/hooks/useInventory";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useSales } from "@/hooks/useSales";
 
@@ -25,7 +25,7 @@ interface SaleItem {
 }
 
 export default function SalesEntry() {
-  const { products } = useProducts();
+  const { inventory: products } = useInventory();
   const { customers } = useCustomers();
   const { createSale } = useSales();
   const [items, setItems] = useState<SaleItem[]>([]);
@@ -58,7 +58,7 @@ export default function SalesEntry() {
     setItems(items.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
-        
+
         // Auto-populate product details when product is selected
         if (field === "productId") {
           const product = products.find(p => p.id === value);
@@ -69,17 +69,19 @@ export default function SalesEntry() {
             updatedItem.availableStock = `${product.stock_quantity} ${product.category?.includes('kg') ? 'kg' : 'pcs'}`;
           }
         }
-        
+
         // Calculate line total and total pieces sold
         if (updatedItem.pricingMethod === "per_kg") {
           updatedItem.lineTotal = (updatedItem.quantityKg || 0) * updatedItem.unitPrice;
-          // Estimate pieces from kg (assuming average 1.2kg per fish)
-          updatedItem.totalPiecesSold = Math.round((updatedItem.quantityKg || 0) / 1.2);
+          if (field !== 'totalPiecesSold') {
+            // Estimate pieces from kg, allowing user to override
+            updatedItem.totalPiecesSold = Math.round((updatedItem.quantityKg || 0) / 1.2);
+          }
         } else if (updatedItem.pricingMethod === "per_piece") {
           updatedItem.lineTotal = (updatedItem.quantityPieces || 0) * updatedItem.unitPrice;
           updatedItem.totalPiecesSold = updatedItem.quantityPieces || 0;
         }
-        
+
         return updatedItem;
       }
       return item;
@@ -111,7 +113,7 @@ export default function SalesEntry() {
           unit_price: item.unitPrice,
         })),
       });
-      
+
       // Reset form
       setItems([]);
       setSelectedCustomer("");
@@ -207,7 +209,7 @@ export default function SalesEntry() {
                           <Minus className="h-4 w-4" />
                         </Button>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         <div>
                           <Label>Product</Label>
@@ -248,15 +250,26 @@ export default function SalesEntry() {
                         </div>
 
                         {item.pricingMethod === "per_kg" ? (
-                          <div>
-                            <Label>Quantity (kg)</Label>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={item.quantityKg || ""}
-                              onChange={(e) => updateItem(item.id, "quantityKg", Number(e.target.value))}
-                            />
-                          </div>
+                          <>
+                            <div>
+                              <Label>Quantity (kg)</Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={item.quantityKg || ""}
+                                onChange={(e) => updateItem(item.id, "quantityKg", Number(e.target.value))}
+                              />
+                            </div>
+                            <div>
+                              <Label>Total Pieces Sold</Label>
+                              <Input
+                                type="number"
+                                value={item.totalPiecesSold || ""}
+                                onChange={(e) => updateItem(item.id, "totalPiecesSold", Number(e.target.value))}
+                                placeholder="Pieces"
+                              />
+                            </div>
+                          </>
                         ) : (
                           <div>
                             <Label>Quantity (pieces)</Label>
@@ -267,13 +280,6 @@ export default function SalesEntry() {
                             />
                           </div>
                         )}
-
-                        <div>
-                          <Label>Total Pieces Sold</Label>
-                          <div className="flex items-center h-10 px-3 border rounded-md bg-muted">
-                            <span className="font-medium">{item.totalPiecesSold || 0} pcs</span>
-                          </div>
-                        </div>
 
                         <div>
                           <Label>Line Total</Label>
@@ -305,7 +311,7 @@ export default function SalesEntry() {
                 <span>Subtotal:</span>
                 <span className="font-medium">₦{subtotal.toLocaleString()}</span>
               </div>
-              
+
               <div>
                 <Label htmlFor="discount">Discount (₦)</Label>
                 <Input
@@ -315,7 +321,7 @@ export default function SalesEntry() {
                   onChange={(e) => setDiscount(Number(e.target.value))}
                 />
               </div>
-              
+
               <div className="border-t pt-4">
                 <div className="flex justify-between text-lg font-semibold">
                   <span>Total:</span>

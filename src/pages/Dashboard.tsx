@@ -1,11 +1,13 @@
-import { TrendingUp, DollarSign, CreditCard, Package, Users, AlertTriangle } from "lucide-react";
+import { TrendingUp, DollarSign, CreditCard, Package, Users, AlertTriangle, LogOut } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Dashboard() {
   const { stats, loading } = useDashboard();
+  const { signOut } = useAuth();
 
   const kpis = [
     {
@@ -30,10 +32,10 @@ export default function Dashboard() {
       icon: Users,
     },
     {
-      title: "Total Products",
-      value: loading ? "..." : stats.totalProducts.toString(),
-      change: loading ? "..." : `${stats.lowStockProducts} low stock`,
-      changeType: stats.lowStockProducts > 0 ? "warning" as const : "positive" as const,
+      title: "Total Inventory",
+      value: loading ? "..." : stats.totalInventoryItems.toString(),
+      change: loading ? "..." : `${stats.lowStockItems} low stock`,
+      changeType: stats.lowStockItems > 0 ? "warning" as const : "positive" as const,
       icon: Package,
     },
   ];
@@ -46,11 +48,15 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">Overview of your business performance</p>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex items-center space-x-2">
           <Button variant="outline">Today</Button>
           <Button variant="outline">This Week</Button>
           <Button variant="outline">This Month</Button>
           <Button variant="default">Custom Range</Button>
+          <Button variant="outline" onClick={signOut}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Logout
+          </Button>
         </div>
       </div>
 
@@ -65,7 +71,7 @@ export default function Dashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{kpi.value}</div>
               <div className="flex items-center space-x-1 text-xs">
-                <Badge 
+                <Badge
                   variant={kpi.changeType === "positive" ? "default" : kpi.changeType === "warning" ? "secondary" : "destructive"}
                   className="text-xs"
                 >
@@ -103,7 +109,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">₦{sale.amount.toLocaleString()}</p>
-                      <Badge 
+                      <Badge
                         variant={sale.status === "completed" ? "default" : sale.status === "pending" ? "secondary" : "outline"}
                         className="text-xs"
                       >
@@ -117,31 +123,31 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Top Products */}
+        {/* Top Items */}
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Top Products</CardTitle>
-            <CardDescription>Best performing products today</CardDescription>
+            <CardTitle>Top Selling Items</CardTitle>
+            <CardDescription>Best performing items today</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {loading ? (
                 <div className="text-center py-4 text-muted-foreground">Loading...</div>
-              ) : stats.topProducts.length === 0 ? (
-                <div className="text-center py-4 text-muted-foreground">No product data yet</div>
+              ) : stats.topItems.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">No item data yet</div>
               ) : (
-                stats.topProducts.map((product, index) => (
-                  <div key={product.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                stats.topItems.map((item, index) => (
+                  <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold text-sm">
                         {index + 1}
                       </div>
                       <div>
-                        <p className="font-medium">{product.name}</p>
-                        <p className="text-sm text-muted-foreground">{product.total_sold} sold</p>
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">{item.total_sold} sold</p>
                       </div>
                     </div>
-                    <p className="font-semibold text-success">₦{product.revenue.toLocaleString()}</p>
+                    <p className="font-semibold text-success">₦{item.revenue.toLocaleString()}</p>
                   </div>
                 ))
               )}
@@ -158,7 +164,7 @@ export default function Dashboard() {
               <AlertTriangle className="h-5 w-5" />
               <span>Stock Alerts</span>
             </CardTitle>
-            <CardDescription>Products running low on stock</CardDescription>
+            <CardDescription>Inventory items running low on stock</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
