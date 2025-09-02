@@ -10,12 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { useSales } from "@/hooks/useSales";
-import { useProducts } from "@/hooks/useProducts";
+import { useInventory } from "@/hooks/useInventory";
 import { useCustomers } from "@/hooks/useCustomers";
 
 export default function Reports() {
   const { sales, loading } = useSales();
-  const { products } = useProducts();
+  const { inventory: products } = useInventory();
   const { customers } = useCustomers();
   const [dateFrom, setDateFrom] = useState("2024-08-01");
   const [dateTo, setDateTo] = useState("2024-08-31");
@@ -60,7 +60,7 @@ export default function Reports() {
       title: "Exporting report...",
       description: `Your ${format.toUpperCase()} report is being generated.`,
     });
-    
+
     // Simulate export
     setTimeout(() => {
       toast({
