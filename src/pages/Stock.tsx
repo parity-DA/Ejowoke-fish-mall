@@ -110,11 +110,20 @@ export default function Stock() {
 
   useEffect(() => {
     if (selectedDate) {
-      getHistoricalStockData(selectedDate).then(data => {
-        setHistoricalData(data);
-      });
+      getHistoricalStockData(selectedDate)
+        .then(data => {
+          setHistoricalData(data);
+        })
+        .catch(err => {
+          console.error("Caught an error in getHistoricalStockData:", err);
+          toast({
+            title: "An unexpected error occurred",
+            description: "Could not load historical dashboard data.",
+            variant: "destructive",
+          });
+        });
     }
-  }, [selectedDate]);
+  }, [selectedDate, getHistoricalStockData]);
 
   const totalValue = stock.reduce((sum, item) => sum + item.total_amount, 0);
   const totalRemainingValue = inventory.reduce((sum, item) => sum + (item.cost_price * item.stock_quantity), 0);

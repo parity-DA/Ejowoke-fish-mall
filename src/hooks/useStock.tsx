@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
@@ -263,7 +263,7 @@ export const useStock = () => {
     };
   }, [user]);
 
-  const getHistoricalStockData = async (date: Date) => {
+  const getHistoricalStockData = useCallback(async (date: Date) => {
     if (!user) {
       return {
         openingStockValue: 0,
@@ -302,7 +302,7 @@ export const useStock = () => {
       stockOutValue: 0,
       closingStockValue: 0,
     };
-  };
+  }, [user, toast]);
 
   return {
     stock,
