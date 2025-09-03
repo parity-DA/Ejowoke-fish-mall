@@ -21,7 +21,11 @@ export interface StockItem {
   quantity: number;
   unit_cost: number;
   total_cost: number;
+  total_pieces: number;
   created_at: string;
+  inventory?: {
+    name: string;
+  };
 }
 
 export interface Supplier {
@@ -45,13 +49,15 @@ export const useStock = () => {
         .from('stock')
         .select(`
           *,
-          stock_items (
+          stock_items!inner (
             id,
             inventory_item_id,
             quantity,
             unit_cost,
             total_cost,
-            created_at
+            total_pieces,
+            created_at,
+            inventory!inner ( name )
           )
         `)
         .eq('user_id', user.id)
@@ -83,6 +89,7 @@ export const useStock = () => {
       quantity: number;
       unit_cost: number;
       total_cost: number;
+      total_pieces: number;
     }>;
   }) => {
     if (!user) return { error: 'User not authenticated' };
@@ -123,6 +130,9 @@ export const useStock = () => {
         if (itemsError) {
           console.error('Error inserting stock items:', itemsError);
         } else {
+          // TODO: Refactor this to a Supabase database function (e.g., `handle_new_stock`)
+          // to ensure atomicity and data consistency.
+          // This client-side logic is prone to race conditions and partial updates.
           // Update inventory quantities
           for (const item of stockData.items) {
             const { data: currentInventory, error: fetchError } = await supabase
@@ -137,7 +147,7 @@ export const useStock = () => {
             }
 
             const new_stock_quantity = (currentInventory.stock_quantity || 0) + item.quantity;
-            const new_total_pieces = (currentInventory.total_pieces || 0) + (item.quantity * 1.2); // Approximate pieces
+            const new_total_pieces = (currentInventory.total_pieces || 0) + item.total_pieces;
 
             await supabase
               .from('inventory')
@@ -253,6 +263,47 @@ export const useStock = () => {
     };
   }, [user]);
 
+  const getHistoricalStockData = async (date: Date) => {
+    if (!user) {
+      return {
+        openingStockValue: 0,
+        stockInValue: 0,
+        stockOutValue: 0,
+        closingStockValue: 0,
+      };
+    }
+
+    const p_date = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+
+    const { data, error } = await supabase.rpc('get_historical_stock_data', {
+      p_user_id: user.id,
+      p_date,
+    });
+
+    if (error) {
+      console.error('Error fetching historical stock data:', error);
+      toast({
+        title: "Error fetching historical data",
+        description: error.message,
+        variant: "destructive",
+      });
+      return {
+        openingStockValue: 0,
+        stockInValue: 0,
+        stockOutValue: 0,
+        closingStockValue: 0,
+      };
+    }
+
+    // The RPC function returns an array with a single object
+    return data[0] || {
+      openingStockValue: 0,
+      stockInValue: 0,
+      stockOutValue: 0,
+      closingStockValue: 0,
+    };
+  };
+
   return {
     stock,
     loading,
@@ -260,5 +311,6 @@ export const useStock = () => {
     updateStock,
     deleteStock,
     refetch: fetchStock,
+    getHistoricalStockData,
   };
 };
