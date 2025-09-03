@@ -10,10 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
 import { useSales } from "@/hooks/useSales";
-import { useProducts } from "@/hooks/useProducts";
+import { useInventory } from "@/hooks/useInventory";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useExpenses } from "@/hooks/useExpenses";
-import { usePurchases } from "@/hooks/usePurchases";
+import { useStock } from "@/hooks/useStock";
 
 interface SuperAdminMetrics {
   totalRevenue: number;
@@ -23,8 +23,8 @@ interface SuperAdminMetrics {
   profitMargin: number;
   totalCustomers: number;
   activeCustomers: number;
-  totalProducts: number;
-  lowStockProducts: number;
+  totalInventoryItems: number;
+  lowStockItems: number;
   outstandingCredits: number;
   dailyAvgSales: number;
   monthlyGrowth: number;
@@ -57,41 +57,41 @@ const SUPER_ADMIN_PASSWORD = "EJowoke2024!";
 export default function SuperAdmin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
-  
+
   // Fetch real data
   const { sales, loading: salesLoading } = useSales();
-  const { products, loading: productsLoading } = useProducts();
+  const { inventory, loading: inventoryLoading } = useInventory();
   const { customers, loading: customersLoading } = useCustomers();
   const { expenses, loading: expensesLoading } = useExpenses();
-  const { purchases, loading: purchasesLoading } = usePurchases();
+  const { stock, loading: stockLoading } = useStock();
 
   // Calculate real metrics from data
   const metrics = useMemo(() => {
-    if (salesLoading || productsLoading || customersLoading || expensesLoading || purchasesLoading) {
+    if (salesLoading || inventoryLoading || customersLoading || expensesLoading || stockLoading) {
       return null;
     }
 
     const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
     const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-    const totalPurchaseCosts = purchases.reduce((sum, purchase) => sum + purchase.total_amount, 0);
+    const totalPurchaseCosts = stock.reduce((sum, item) => sum + item.total_amount, 0);
     const totalCosts = totalExpenses + totalPurchaseCosts;
     const grossProfit = totalRevenue - totalCosts;
     const netProfit = grossProfit - (totalExpenses * 0.1); // Assuming 10% additional costs
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-    
-    const lowStockProducts = products.filter(p => p.stock_quantity <= p.minimum_stock).length;
+
+    const lowStockItems = inventory.filter(p => p.stock_quantity <= p.minimum_stock).length;
     const outstandingCredits = customers.reduce((sum, customer) => sum + (customer.outstanding_balance || 0), 0);
-    
+
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     const thisMonthSales = sales.filter(sale => {
       const saleDate = new Date(sale.created_at);
       return saleDate.getMonth() === currentMonth && saleDate.getFullYear() === currentYear;
     });
-    
+
     const activeCustomers = new Set(thisMonthSales.map(sale => sale.customer_id).filter(Boolean)).size;
     const dailyAvgSales = thisMonthSales.length > 0 ? totalRevenue / 30 : 0; // Rough daily average
-    
+
     // Calculate monthly growth (comparing to previous month)
     const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
@@ -111,57 +111,57 @@ export default function SuperAdmin() {
       profitMargin,
       totalCustomers: customers.length,
       activeCustomers,
-      totalProducts: products.length,
-      lowStockProducts,
+      totalInventoryItems: inventory.length,
+      lowStockItems,
       outstandingCredits,
       dailyAvgSales,
       monthlyGrowth,
     };
-  }, [sales, products, customers, expenses, purchases, salesLoading, productsLoading, customersLoading, expensesLoading, purchasesLoading]);
+  }, [sales, inventory, customers, expenses, stock, salesLoading, inventoryLoading, customersLoading, expensesLoading, stockLoading]);
 
   // Calculate top performing products
-  const topPerformingProducts = useMemo(() => {
-    if (!sales.length || !products.length) return [];
-    
-    const productSales = new Map();
+  const topPerformingItems = useMemo(() => {
+    if (!sales.length || !inventory.length) return [];
+
+    const itemSales = new Map();
     sales.forEach(sale => {
       // For now, we'll distribute sales evenly across all products
       // In a real app, you'd have sale_items to track individual product sales
-      products.forEach(product => {
-        if (!productSales.has(product.id)) {
-          productSales.set(product.id, { product, revenue: 0, salesCount: 0 });
+      inventory.forEach(item => {
+        if (!itemSales.has(item.id)) {
+          itemSales.set(item.id, { item, revenue: 0, salesCount: 0 });
         }
-        const productData = productSales.get(product.id);
-        productData.revenue += sale.total_amount / products.length; // Rough distribution
-        productData.salesCount += 1;
+        const itemData = itemSales.get(item.id);
+        itemData.revenue += sale.total_amount / inventory.length; // Rough distribution
+        itemData.salesCount += 1;
       });
     });
 
-    return Array.from(productSales.values())
+    return Array.from(itemSales.values())
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 4)
       .map(item => ({
-        name: item.product.name,
+        name: item.item.name,
         revenue: Math.round(item.revenue),
         profit: Math.round(item.revenue * 0.3), // Assuming 30% profit margin
         margin: 30
       }));
-  }, [sales, products]);
+  }, [sales, inventory]);
 
   // Calculate top customers
   const topCustomers = useMemo(() => {
     if (!sales.length || !customers.length) return [];
-    
+
     const customerSales = new Map();
     sales.forEach(sale => {
       if (sale.customer_id) {
         const customer = customers.find(c => c.id === sale.customer_id);
         if (customer) {
           if (!customerSales.has(sale.customer_id)) {
-            customerSales.set(sale.customer_id, { 
-              customer, 
-              revenue: 0, 
-              visits: 0 
+            customerSales.set(sale.customer_id, {
+              customer,
+              revenue: 0,
+              visits: 0
             });
           }
           const customerData = customerSales.get(sale.customer_id);
@@ -209,7 +209,7 @@ export default function SuperAdmin() {
     });
   };
 
-  if (salesLoading || productsLoading || customersLoading || expensesLoading || purchasesLoading) {
+  if (salesLoading || inventoryLoading || customersLoading || expensesLoading || stockLoading) {
     return (
       <div className="p-6">
         <div className="text-center">Loading dashboard data...</div>
@@ -346,7 +346,7 @@ export default function SuperAdmin() {
               </div>
               <Progress value={100} className="h-2" />
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Total Costs</span>
@@ -354,7 +354,7 @@ export default function SuperAdmin() {
               </div>
               <Progress value={metrics.totalRevenue > 0 ? (metrics.totalCosts / metrics.totalRevenue) * 100 : 0} className="h-2" />
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Gross Profit</span>
@@ -362,7 +362,7 @@ export default function SuperAdmin() {
               </div>
               <Progress value={metrics.totalRevenue > 0 ? (metrics.grossProfit / metrics.totalRevenue) * 100 : 0} className="h-2" />
             </div>
-            
+
             <div className="pt-4 border-t">
               <div className="flex justify-between">
                 <span className="font-semibold">Net Profit</span>
@@ -393,14 +393,14 @@ export default function SuperAdmin() {
                 <div className="text-sm text-muted-foreground">Active This Month</div>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{metrics.totalProducts}</div>
-                <div className="text-sm text-muted-foreground">Total Products</div>
+                <div className="text-2xl font-bold text-blue-600">{metrics.totalInventoryItems}</div>
+                <div className="text-sm text-muted-foreground">Total Inventory Items</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{metrics.lowStockProducts}</div>
+                <div className="text-2xl font-bold text-red-600">{metrics.lowStockItems}</div>
                 <div className="text-sm text-muted-foreground">Low Stock Items</div>
               </div>
             </div>
@@ -420,7 +420,7 @@ export default function SuperAdmin() {
       {/* Tabs for detailed views */}
       <Tabs defaultValue="products" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="products">Top Products</TabsTrigger>
+          <TabsTrigger value="products">Top Items</TabsTrigger>
           <TabsTrigger value="customers">Top Customers</TabsTrigger>
           <TabsTrigger value="edit-requests">Edit Requests</TabsTrigger>
           <TabsTrigger value="audit-logs">Audit Logs</TabsTrigger>
@@ -429,27 +429,27 @@ export default function SuperAdmin() {
         <TabsContent value="products">
           <Card className="shadow-card">
             <CardHeader>
-              <CardTitle>Top Performing Products</CardTitle>
-              <CardDescription>Products ranked by revenue and profit contribution</CardDescription>
+              <CardTitle>Top Performing Items</CardTitle>
+              <CardDescription>Items ranked by revenue and profit contribution</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product Name</TableHead>
+                    <TableHead>Item Name</TableHead>
                     <TableHead className="text-right">Revenue</TableHead>
                     <TableHead className="text-right">Profit</TableHead>
                     <TableHead className="text-right">Margin</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {topPerformingProducts.map((product, index) => (
+                  {topPerformingItems.map((item, index) => (
                     <TableRow key={index}>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell className="text-right">₦{product.revenue.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-green-600">₦{product.profit.toLocaleString()}</TableCell>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell className="text-right">₦{item.revenue.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-green-600">₦{item.profit.toLocaleString()}</TableCell>
                       <TableCell className="text-right">
-                        <Badge variant="default">{product.margin}%</Badge>
+                        <Badge variant="default">{item.margin}%</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
