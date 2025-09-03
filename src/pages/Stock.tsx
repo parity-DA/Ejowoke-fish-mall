@@ -130,17 +130,17 @@ export default function Stock() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Stock Management</h1>
           <p className="text-muted-foreground">Manage suppliers and stock lots</p>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant={"outline"}
-                className="w-[280px] justify-start text-left font-normal"
+                className="w-full sm:w-[280px] justify-start text-left font-normal"
               >
                 <Calendar className="mr-2 h-4 w-4" />
                 {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
@@ -431,9 +431,10 @@ export default function Stock() {
           <CardDescription>Detailed history of all stock supplies</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead>Item Name</TableHead>
@@ -491,6 +492,7 @@ export default function Stock() {
               )}
             </TableBody>
           </Table>
+        </div>
         </CardContent>
       </Card>
     </div>
