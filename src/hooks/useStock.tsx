@@ -109,7 +109,7 @@ export const useStock = () => {
         return { error: stockError };
       }
 
-      // Insert stock items
+      // Insert stock items and update inventory
       if (stockData.items.length > 0) {
         const items = stockData.items.map(item => ({
           ...item,
@@ -122,6 +122,28 @@ export const useStock = () => {
 
         if (itemsError) {
           console.error('Error inserting stock items:', itemsError);
+        } else {
+          // Update inventory quantities
+          for (const item of stockData.items) {
+            const { data: currentInventory, error: fetchError } = await supabase
+              .from('inventory')
+              .select('stock_quantity, total_pieces')
+              .eq('id', item.inventory_item_id)
+              .single();
+
+            if (fetchError) {
+              console.error('Error fetching inventory for update:', fetchError);
+              continue;
+            }
+
+            const new_stock_quantity = (currentInventory.stock_quantity || 0) + item.quantity;
+            const new_total_pieces = (currentInventory.total_pieces || 0) + (item.quantity * 1.2); // Approximate pieces
+
+            await supabase
+              .from('inventory')
+              .update({ stock_quantity: new_stock_quantity, total_pieces: new_total_pieces })
+              .eq('id', item.inventory_item_id);
+          }
         }
       }
 

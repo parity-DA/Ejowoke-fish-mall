@@ -84,7 +84,7 @@ export default function Stock() {
   };
 
   const totalValue = stock.reduce((sum, item) => sum + item.total_amount, 0);
-  const totalRemainingValue = stock.reduce((sum, item) => sum + item.total_amount, 0); // This would need proper calculation in real app
+  const totalRemainingValue = inventory.reduce((sum, item) => sum + (item.cost_price * item.stock_quantity), 0);
 
   if (loading) {
     return (
@@ -178,14 +178,106 @@ export default function Stock() {
                   />
                 </div>
 
+                {newStockItem.items.map((item, index) => (
+                  <div key={index} className="p-4 border rounded-lg space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Item #{index + 1}</h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const items = [...newStockItem.items];
+                          items.splice(index, 1);
+                          setNewStockItem({ ...newStockItem, items });
+                        }}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Inventory Item</Label>
+                        <Select
+                          value={item.inventory_item_id}
+                          onValueChange={(value) => {
+                            const items = [...newStockItem.items];
+                            items[index].inventory_item_id = value;
+                            setNewStockItem({ ...newStockItem, items });
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select item" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {inventory.map((invItem) => (
+                              <SelectItem key={invItem.id} value={invItem.id}>
+                                {invItem.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Quantity (kg)</Label>
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const items = [...newStockItem.items];
+                            items[index].quantity = Number(e.target.value);
+                            items[index].total_cost = items[index].quantity * items[index].unit_cost;
+                            setNewStockItem({ ...newStockItem, items, total_amount: items.reduce((sum, i) => sum + i.total_cost, 0) });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label>Unit Cost (₦)</Label>
+                        <Input
+                          type="number"
+                          value={item.unit_cost}
+                          onChange={(e) => {
+                            const items = [...newStockItem.items];
+                            items[index].unit_cost = Number(e.target.value);
+                            items[index].total_cost = items[index].quantity * items[index].unit_cost;
+                            setNewStockItem({ ...newStockItem, items, total_amount: items.reduce((sum, i) => sum + i.total_cost, 0) });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label>Total Cost</Label>
+                        <div className="flex items-center h-10 px-3 border rounded-md bg-muted">
+                          <span className="font-medium">₦{item.total_cost.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setNewStockItem({
+                      ...newStockItem,
+                      items: [
+                        ...newStockItem.items,
+                        { inventory_item_id: "", quantity: 0, unit_cost: 0, total_cost: 0 },
+                      ],
+                    })
+                  }
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Item
+                </Button>
+
                 <div>
-                  <Label htmlFor="total-amount">Total Amount (₦) *</Label>
+                  <Label htmlFor="total-amount">Total Amount (₦)</Label>
                   <Input
                     id="total-amount"
                     type="number"
                     value={newStockItem.total_amount || ""}
-                    onChange={(e) => setNewStockItem({ ...newStockItem, total_amount: Number(e.target.value) })}
-                    placeholder="0"
+                    readOnly
+                    className="bg-muted"
                   />
                 </div>
 
@@ -269,11 +361,11 @@ export default function Stock() {
           />
         </div>
 
-      {/* Stock Table */}
+      {/* Stock History Table */}
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle>Stock Records</CardTitle>
-          <CardDescription>All recorded stock lots from suppliers</CardDescription>
+          <CardTitle>Stock History</CardTitle>
+          <CardDescription>Detailed history of all stock supplies</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -281,43 +373,29 @@ export default function Stock() {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Supplier</TableHead>
-                <TableHead className="text-right">Total Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Item Name</TableHead>
+                <TableHead className="text-right">Quantity (kg)</TableHead>
+                <TableHead className="text-right">Unit Cost (₦)</TableHead>
+                <TableHead className="text-right">Total Cost (₦)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStock.map((item) => (
+              {filteredStock.flatMap(s => s.stock_items?.map(item => ({...item, supplier_name: s.supplier_name, date: s.created_at}))).map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{new Date(item.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{new Date(item.date).toLocaleDateString()}</TableCell>
                   <TableCell className="font-medium">{item.supplier_name}</TableCell>
+                  <TableCell>{inventory.find(inv => inv.id === item.inventory_item_id)?.name}</TableCell>
+                  <TableCell className="text-right">{item.quantity}</TableCell>
+                  <TableCell className="text-right">₦{item.unit_cost.toLocaleString()}</TableCell>
                   <TableCell className="text-right font-medium">
-                    ₦{item.total_amount.toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="default">{item.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => updateStock && updateStock(item.id, item)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => deleteStock && deleteStock(item.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    ₦{item.total_cost.toLocaleString()}
                   </TableCell>
                 </TableRow>
               ))}
               {filteredStock.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No stock found
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    No stock history found
                   </TableCell>
                 </TableRow>
               )}
