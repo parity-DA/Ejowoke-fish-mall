@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Truck, Calendar, Package, Edit, Trash2, Search, Filter } from "lucide-react";
+import { Plus, Truck, Package, Edit, Trash2, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,14 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { usePurchases } from "@/hooks/usePurchases";
-import { useProducts } from "@/hooks/useProducts";
 
 export default function Purchases() {
   const { purchases, loading, addPurchase, updatePurchase, deletePurchase } = usePurchases();
-  const { products } = useProducts();
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false);
@@ -52,7 +49,7 @@ export default function Purchases() {
     }
 
     const { error } = await addPurchase(newPurchase);
-    
+
     if (!error) {
       setNewPurchase({
         supplier_name: "",
@@ -78,7 +75,7 @@ export default function Purchases() {
       title: "Supplier added successfully!",
       description: `${newSupplier.name} has been added.`,
     });
-    
+
     setNewSupplier({ name: "", phone: "", address: "" });
     setIsSupplierDialogOpen(false);
   };
@@ -302,9 +299,9 @@ export default function Purchases() {
                       <Button variant="ghost" size="sm" onClick={() => updatePurchase && updatePurchase(purchase.id, purchase)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="text-destructive hover:text-destructive"
                         onClick={() => deletePurchase && deletePurchase(purchase.id)}
                       >

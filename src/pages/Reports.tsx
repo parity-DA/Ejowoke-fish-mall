@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Download, Calendar, TrendingUp, BarChart3, PieChart } from "lucide-react";
+import { FileText, Download, TrendingUp, BarChart3, PieChart } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,14 @@ import { useSales } from "@/hooks/useSales";
 import { useProducts } from "@/hooks/useProducts";
 import { useCustomers } from "@/hooks/useCustomers";
 
+interface DailySale {
+  date: string;
+  totalSales: number;
+  totalKg: number;
+  totalPieces: number;
+  grossProfit: number;
+}
+
 export default function Reports() {
   const { sales, loading } = useSales();
   const { products } = useProducts();
@@ -21,7 +29,7 @@ export default function Reports() {
   const [dateTo, setDateTo] = useState("2024-08-31");
   const [reportType, setReportType] = useState("daily_sales");
   // Process real data for reports
-  const dailySalesData = sales.reduce((acc: any[], sale) => {
+  const dailySalesData = sales.reduce((acc: DailySale[], sale) => {
     const date = new Date(sale.created_at).toDateString();
     const existing = acc.find(d => d.date === date);
     if (existing) {
@@ -41,7 +49,7 @@ export default function Reports() {
   const productPerformance = products.map(product => ({
     productName: product.name,
     totalRevenue: sales
-      .reduce((sum, sale) => sum + sale.total_amount, 0) / products.length, // Simplified calculation
+      .reduce((sum, sale) => sum + sale.total_amount, 0) / (products.length || 1), // Simplified calculation
     totalKg: 0,
     totalPieces: 0,
     avgPrice: product.selling_price
@@ -60,7 +68,7 @@ export default function Reports() {
       title: "Exporting report...",
       description: `Your ${format.toUpperCase()} report is being generated.`,
     });
-    
+
     // Simulate export
     setTimeout(() => {
       toast({

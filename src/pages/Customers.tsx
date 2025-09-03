@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCustomers } from "@/hooks/useCustomers";
 
 export default function Customers() {
-  const { customers, loading, addCustomer, updateCustomer, deleteCustomer } = useCustomers();
+  const { customers, addCustomer, updateCustomer, deleteCustomer } = useCustomers();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterChannel, setFilterChannel] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -128,7 +128,7 @@ export default function Customers() {
                   <Label htmlFor="channel">Customer Type</Label>
                   <Select
                     value={newCustomer.channel}
-                    onValueChange={(value) => setNewCustomer({ ...newCustomer, channel: value as any })}
+                    onValueChange={(value) => setNewCustomer({ ...newCustomer, channel: value as 'walk-in' | 'retailer' | 'restaurant' | 'wholesaler' })}
                   >
                     <SelectTrigger>
                       <SelectValue />

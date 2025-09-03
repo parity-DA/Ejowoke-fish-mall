@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { AuthError } from '@supabase/supabase-js';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 
@@ -40,7 +41,7 @@ export const useSales = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -60,16 +61,16 @@ export const useSales = () => {
         payment_method: sale.payment_method as 'cash' | 'card' | 'transfer' | 'credit',
         status: sale.status as 'pending' | 'completed' | 'cancelled'
       })) || []);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error fetching sales',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   const createSale = async (saleData: {
     customer_id?: string;
@@ -151,10 +152,10 @@ export const useSales = () => {
       });
 
       return sale;
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error creating sale',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
       throw error;
@@ -178,10 +179,10 @@ export const useSales = () => {
       });
 
       return data;
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error updating sale',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
       throw error;
@@ -252,10 +253,10 @@ export const useSales = () => {
 
       // Refresh the sales list
       fetchSales();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error deleting sale',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
       throw error;
@@ -264,7 +265,7 @@ export const useSales = () => {
 
   useEffect(() => {
     fetchSales();
-  }, [user]);
+  }, [user, fetchSales]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -289,7 +290,7 @@ export const useSales = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, fetchSales]);
 
   return {
     sales,

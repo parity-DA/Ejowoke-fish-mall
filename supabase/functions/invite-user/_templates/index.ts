@@ -169,7 +169,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in invite-user function:", error);
     return new Response(
       JSON.stringify({ error: error.message }),

@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { AuthError } from '@supabase/supabase-js';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 
@@ -13,13 +14,17 @@ interface UserWithRole {
   created_at: string;
 }
 
+interface InviteUserResponse {
+    temporaryPassword?: string;
+}
+
 interface UserRolesContextType {
   userRole: UserRole | null;
   loading: boolean;
   users: UserWithRole[];
-  assignRole: (userId: string, role: UserRole) => Promise<{ error: any }>;
-  inviteUser: (email: string, role: UserRole) => Promise<{ error: any; data?: any }>;
-  deleteUser: (userId: string) => Promise<{ error: any }>;
+  assignRole: (userId: string, role: UserRole) => Promise<{ error: AuthError | null }>;
+  inviteUser: (email: string, role: UserRole) => Promise<{ error: AuthError | null; data?: InviteUserResponse }>;
+  deleteUser: (userId: string) => Promise<{ error: AuthError | null }>;
   fetchUsers: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
   isSuperAdmin: boolean;
@@ -43,7 +48,7 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const { toast } = useToast();
 
-  const fetchUserRole = async (userId: string): Promise<UserRole> => {
+  const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
     try {
       // Use SQL query directly since RPC might not be available
       const { data, error } = await supabase
@@ -61,9 +66,9 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error fetching user role:', error);
       return 'user';
     }
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       // Get all profiles first
       const { data: profiles, error: profilesError } = await supabase
@@ -78,7 +83,7 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
 
       // Get roles for each user
       const usersWithRoles: UserWithRole[] = [];
-      
+
       for (const profile of profiles) {
         const role = await fetchUserRole(profile.user_id);
         usersWithRoles.push({
@@ -94,7 +99,7 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Error fetching users:', error);
     }
-  };
+  }, [fetchUserRole]);
 
   const assignRole = async (userId: string, role: UserRole) => {
     try {
@@ -125,10 +130,10 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error assigning role:', error);
       toast({
         title: "Failed to assign role",
-        description: "An unexpected error occurred.",
+        description: error instanceof AuthError ? error.message : "An unexpected error occurred.",
         variant: "destructive",
       });
-      return { error };
+      return { error: error instanceof AuthError ? error : null };
     }
   };
 
@@ -158,10 +163,10 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error deleting user:', error);
       toast({
         title: "Failed to delete user",
-        description: "An unexpected error occurred.",
+        description: error instanceof AuthError ? error.message : "An unexpected error occurred.",
         variant: "destructive",
       });
-      return { error };
+      return { error: error instanceof AuthError ? error : null };
     }
   };
 
@@ -181,7 +186,7 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
           description: error.message,
           variant: "destructive",
         });
-        return { error };
+        return { error, data: undefined };
       }
 
       await fetchUsers();
@@ -193,13 +198,13 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
       return { error: null, data };
     } catch (error) {
       console.error('Error inviting user:', error);
-      return { error };
+      return { error: error instanceof AuthError ? error : null, data: undefined };
     }
   };
 
   const hasRole = (role: UserRole): boolean => {
     if (!userRole) return false;
-    
+
     const roleHierarchy: Record<UserRole, number> = {
       'user': 1,
       'admin': 2,
@@ -230,7 +235,7 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       setUsers([]);
     }
-  }, [user]);
+  }, [user, fetchUserRole, fetchUsers]);
 
   const value = {
     userRole,

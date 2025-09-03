@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { AuthError } from '@supabase/supabase-js';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 
@@ -25,7 +26,7 @@ export const useProducts = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -37,16 +38,16 @@ export const useProducts = () => {
 
       if (error) throw error;
       setProducts(data || []);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error fetching products',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   const addProduct = async (productData: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
     if (!user) return;
@@ -66,10 +67,10 @@ export const useProducts = () => {
       });
 
       return data;
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error adding product',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
       throw error;
@@ -94,10 +95,10 @@ export const useProducts = () => {
       });
 
       return data;
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error updating product',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
       throw error;
@@ -117,10 +118,10 @@ export const useProducts = () => {
       toast({
         title: 'Product deleted successfully!',
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error deleting product',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
       throw error;
@@ -129,7 +130,7 @@ export const useProducts = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, [user]);
+  }, [user, fetchProducts]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -149,7 +150,7 @@ export const useProducts = () => {
           if (payload.eventType === 'INSERT') {
             setProducts(prev => [payload.new as Product, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
-            setProducts(prev => prev.map(product => 
+            setProducts(prev => prev.map(product =>
               product.id === payload.new.id ? payload.new as Product : product
             ));
           } else if (payload.eventType === 'DELETE') {

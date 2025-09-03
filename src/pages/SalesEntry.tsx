@@ -54,7 +54,7 @@ export default function SalesEntry() {
     setItems(items.filter(item => item.id !== id));
   };
 
-  const updateItem = (id: string, field: keyof SaleItem, value: any) => {
+  const updateItem = (id: string, field: keyof SaleItem, value: string | number) => {
     setItems(items.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };

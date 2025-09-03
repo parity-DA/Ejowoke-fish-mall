@@ -7,17 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { useProducts } from "@/hooks/useProducts";
+import { useProducts, Product } from "@/hooks/useProducts";
+import { AuthError } from "@supabase/supabase-js";
 
 export default function Products() {
   const { products, loading, addProduct, updateProduct, deleteProduct } = useProducts();
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
-  const [newProduct, setNewProduct] = useState({
+  const [newProduct, setNewProduct] = useState<Omit<Product, 'id' | 'created_at' | 'updated_at' | 'user_id'>>({
     name: "",
     description: "",
     category: "",
@@ -53,7 +51,7 @@ export default function Products() {
       });
       setIsAddDialogOpen(false);
     } catch (error) {
-      console.error('Error adding product:', error);
+      console.error('Error adding product:', (error as AuthError).message);
     }
   };
 
@@ -236,11 +234,6 @@ export default function Products() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {products.map((product) => {
-              // Mock daily data - in real app this would come from more detailed tracking
-              const todayReceived = Math.floor(Math.random() * 50) + 10;
-              const yesterdayLeftover = Math.floor(Math.random() * 30) + 5;
-              const todaySold = Math.floor(Math.random() * 40) + 15;
-              
               return (
                 <Card key={product.id} className="border-l-4 border-l-primary">
                   <CardContent className="pt-4">
@@ -257,7 +250,7 @@ export default function Products() {
                       <div className="border-t pt-2 mt-2">
                         <div className="flex justify-between text-sm font-semibold">
                           <span>Stock Status:</span>
-                          <Badge 
+                          <Badge
                             variant={product.stock_quantity <= product.minimum_stock ? "destructive" : "default"}
                           >
                             {product.stock_quantity <= product.minimum_stock ? "Low Stock" : "In Stock"}
@@ -302,7 +295,7 @@ export default function Products() {
                   ? (((product.selling_price - product.cost_price) / product.selling_price) * 100).toFixed(1)
                   : "0";
                 const isLowMargin = parseFloat(profitMargin) < 15;
-                
+
                 return (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">{product.name}</TableCell>
@@ -345,9 +338,9 @@ export default function Products() {
                          <Button variant="ghost" size="sm" onClick={() => updateProduct(product.id, product)}>
                            <Edit className="h-4 w-4" />
                          </Button>
-                         <Button 
-                           variant="ghost" 
-                           size="sm" 
+                         <Button
+                           variant="ghost"
+                           size="sm"
                            className="text-destructive hover:text-destructive"
                            onClick={() => deleteProduct(product.id)}
                          >
