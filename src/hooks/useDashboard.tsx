@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { AuthError } from '@supabase/supabase-js';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 
@@ -46,7 +47,7 @@ export const useDashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -69,7 +70,7 @@ export const useDashboard = () => {
           .select('total_amount')
           .eq('user_id', user.id)
           .eq('status', 'completed'),
-        
+
         // Today's sales
         supabase
           .from('sales')
@@ -77,19 +78,19 @@ export const useDashboard = () => {
           .eq('user_id', user.id)
           .eq('status', 'completed')
           .gte('created_at', new Date().toISOString().split('T')[0]),
-        
+
         // Total customers
         supabase
           .from('customers')
           .select('id', { count: 'exact' })
           .eq('user_id', user.id),
-        
+
         // Products and low stock
         supabase
           .from('products')
           .select('*')
           .eq('user_id', user.id),
-        
+
         // Recent sales
         supabase
           .from('sales')
@@ -103,14 +104,14 @@ export const useDashboard = () => {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(5),
-        
+
         // Top products (simplified - in real app you'd aggregate sale_items)
         supabase
           .from('products')
           .select('id, name')
           .eq('user_id', user.id)
           .limit(4),
-        
+
         // Low stock products - we'll filter this in JavaScript since Supabase doesn't support column-to-column comparison directly
         supabase
           .from('products')
@@ -137,13 +138,13 @@ export const useDashboard = () => {
         status: sale.status
       })) || [];
 
-      const topProducts = topProductsResult.data?.map((product, index) => ({
+      const topProducts = topProductsResult.data?.map((product) => ({
         name: product.name,
         total_sold: Math.floor(Math.random() * 100) + 50, // Mock data for now
         revenue: Math.floor(Math.random() * 500000) + 100000 // Mock data for now
       })) || [];
 
-      const lowStockAlerts = lowStockResult.data?.filter(product => 
+      const lowStockAlerts = lowStockResult.data?.filter(product =>
         product.stock_quantity <= product.minimum_stock
       ).map(product => ({
         id: product.id,
@@ -163,20 +164,20 @@ export const useDashboard = () => {
         topProducts,
         lowStockAlerts,
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error fetching dashboard data',
-        description: error.message,
+        description: (error as AuthError).message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   useEffect(() => {
     fetchDashboardStats();
-  }, [user]);
+  }, [user, fetchDashboardStats]);
 
   // Set up real-time subscription for live updates
   useEffect(() => {
@@ -213,7 +214,7 @@ export const useDashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, fetchDashboardStats]);
 
   return {
     stats,

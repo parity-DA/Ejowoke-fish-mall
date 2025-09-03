@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
@@ -37,7 +37,7 @@ export const usePurchases = () => {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchPurchases = async () => {
+  const fetchPurchases = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -73,7 +73,7 @@ export const usePurchases = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   const addPurchase = async (purchaseData: {
     supplier_name: string;
@@ -204,7 +204,7 @@ export const usePurchases = () => {
 
   useEffect(() => {
     fetchPurchases();
-  }, [user]);
+  }, [user, fetchPurchases]);
 
   // Real-time subscriptions
   useEffect(() => {
@@ -229,7 +229,7 @@ export const usePurchases = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, fetchPurchases]);
 
   return {
     purchases,

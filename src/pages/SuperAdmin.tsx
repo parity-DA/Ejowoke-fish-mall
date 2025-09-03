@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Lock, TrendingUp, DollarSign, Users, Package, AlertTriangle, Eye, BarChart3, PieChart, Activity } from "lucide-react";
+import { Lock, TrendingUp, DollarSign, AlertTriangle, BarChart3, PieChart, Activity } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,21 +14,6 @@ import { useProducts } from "@/hooks/useProducts";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useExpenses } from "@/hooks/useExpenses";
 import { usePurchases } from "@/hooks/usePurchases";
-
-interface SuperAdminMetrics {
-  totalRevenue: number;
-  totalCosts: number;
-  grossProfit: number;
-  netProfit: number;
-  profitMargin: number;
-  totalCustomers: number;
-  activeCustomers: number;
-  totalProducts: number;
-  lowStockProducts: number;
-  outstandingCredits: number;
-  dailyAvgSales: number;
-  monthlyGrowth: number;
-}
 
 interface EditRequest {
   id: string;
@@ -57,7 +42,7 @@ const SUPER_ADMIN_PASSWORD = "EJowoke2024!";
 export default function SuperAdmin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
-  
+
   // Fetch real data
   const { sales, loading: salesLoading } = useSales();
   const { products, loading: productsLoading } = useProducts();
@@ -78,20 +63,20 @@ export default function SuperAdmin() {
     const grossProfit = totalRevenue - totalCosts;
     const netProfit = grossProfit - (totalExpenses * 0.1); // Assuming 10% additional costs
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-    
+
     const lowStockProducts = products.filter(p => p.stock_quantity <= p.minimum_stock).length;
     const outstandingCredits = customers.reduce((sum, customer) => sum + (customer.outstanding_balance || 0), 0);
-    
+
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     const thisMonthSales = sales.filter(sale => {
       const saleDate = new Date(sale.created_at);
       return saleDate.getMonth() === currentMonth && saleDate.getFullYear() === currentYear;
     });
-    
+
     const activeCustomers = new Set(thisMonthSales.map(sale => sale.customer_id).filter(Boolean)).size;
     const dailyAvgSales = thisMonthSales.length > 0 ? totalRevenue / 30 : 0; // Rough daily average
-    
+
     // Calculate monthly growth (comparing to previous month)
     const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
@@ -122,7 +107,7 @@ export default function SuperAdmin() {
   // Calculate top performing products
   const topPerformingProducts = useMemo(() => {
     if (!sales.length || !products.length) return [];
-    
+
     const productSales = new Map();
     sales.forEach(sale => {
       // For now, we'll distribute sales evenly across all products
@@ -132,7 +117,7 @@ export default function SuperAdmin() {
           productSales.set(product.id, { product, revenue: 0, salesCount: 0 });
         }
         const productData = productSales.get(product.id);
-        productData.revenue += sale.total_amount / products.length; // Rough distribution
+        productData.revenue += sale.total_amount / (products.length || 1); // Rough distribution
         productData.salesCount += 1;
       });
     });
@@ -151,17 +136,17 @@ export default function SuperAdmin() {
   // Calculate top customers
   const topCustomers = useMemo(() => {
     if (!sales.length || !customers.length) return [];
-    
+
     const customerSales = new Map();
     sales.forEach(sale => {
       if (sale.customer_id) {
         const customer = customers.find(c => c.id === sale.customer_id);
         if (customer) {
           if (!customerSales.has(sale.customer_id)) {
-            customerSales.set(sale.customer_id, { 
-              customer, 
-              revenue: 0, 
-              visits: 0 
+            customerSales.set(sale.customer_id, {
+              customer,
+              revenue: 0,
+              visits: 0
             });
           }
           const customerData = customerSales.get(sale.customer_id);
@@ -200,13 +185,6 @@ export default function SuperAdmin() {
         variant: "destructive",
       });
     }
-  };
-
-  const handleEditRequest = (requestId: string, action: "approve" | "reject") => {
-    toast({
-      title: `Edit request ${action}d`,
-      description: `The edit request has been ${action}d successfully.`,
-    });
   };
 
   if (salesLoading || productsLoading || customersLoading || expensesLoading || purchasesLoading) {
@@ -346,7 +324,7 @@ export default function SuperAdmin() {
               </div>
               <Progress value={100} className="h-2" />
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Total Costs</span>
@@ -354,7 +332,7 @@ export default function SuperAdmin() {
               </div>
               <Progress value={metrics.totalRevenue > 0 ? (metrics.totalCosts / metrics.totalRevenue) * 100 : 0} className="h-2" />
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Gross Profit</span>
@@ -362,7 +340,7 @@ export default function SuperAdmin() {
               </div>
               <Progress value={metrics.totalRevenue > 0 ? (metrics.grossProfit / metrics.totalRevenue) * 100 : 0} className="h-2" />
             </div>
-            
+
             <div className="pt-4 border-t">
               <div className="flex justify-between">
                 <span className="font-semibold">Net Profit</span>
@@ -393,7 +371,7 @@ export default function SuperAdmin() {
                 <div className="text-sm text-muted-foreground">Active This Month</div>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">{metrics.totalProducts}</div>
