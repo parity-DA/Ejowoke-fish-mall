@@ -10,13 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCustomers } from "@/hooks/useCustomers";
-
 export default function Customers() {
-  const { customers, addCustomer, updateCustomer, deleteCustomer } = useCustomers();
+  const {
+    customers,
+    loading,
+    addCustomer,
+    updateCustomer,
+    deleteCustomer
+  } = useCustomers();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterChannel, setFilterChannel] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     phone: "",
@@ -26,24 +30,19 @@ export default function Customers() {
     credit_limit: 0,
     outstanding_balance: 0,
     total_purchases: 0,
-    notes: "",
+    notes: ""
   });
-
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (customer.phone && customer.phone.includes(searchTerm));
+    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) || customer.phone && customer.phone.includes(searchTerm);
     const matchesChannel = filterChannel === "all" || customer.channel === filterChannel;
     return matchesSearch && matchesChannel;
   });
-
   const totalOutstanding = customers.reduce((sum, customer) => sum + customer.outstanding_balance, 0);
   const customersWithCredit = customers.filter(customer => customer.outstanding_balance > 0).length;
-
   const handleAddCustomer = async () => {
     if (!newCustomer.name) {
       return;
     }
-
     try {
       await addCustomer(newCustomer);
       setNewCustomer({
@@ -55,23 +54,20 @@ export default function Customers() {
         credit_limit: 0,
         outstanding_balance: 0,
         total_purchases: 0,
-        notes: "",
+        notes: ""
       });
       setIsAddDialogOpen(false);
     } catch (error) {
       console.error('Error adding customer:', error);
     }
   };
-
   const channelColors = {
     "walk-in": "default",
-    "retailer": "secondary", 
+    "retailer": "secondary",
     "restaurant": "outline",
     "wholesaler": "default"
   } as const;
-
-  return (
-    <div className="p-6 space-y-6">
+  return <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -95,41 +91,34 @@ export default function Customers() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="name">Customer Name *</Label>
-                <Input
-                  id="name"
-                  value={newCustomer.name || ""}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                  placeholder="Enter customer name"
-                />
+                <Input id="name" value={newCustomer.name || ""} onChange={e => setNewCustomer({
+                ...newCustomer,
+                name: e.target.value
+              })} placeholder="Enter customer name" />
               </div>
 
               <div>
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={newCustomer.phone || ""}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                  placeholder="e.g., 08012345678"
-                />
+                <Input id="phone" value={newCustomer.phone || ""} onChange={e => setNewCustomer({
+                ...newCustomer,
+                phone: e.target.value
+              })} placeholder="e.g., 08012345678" />
               </div>
 
               <div>
                 <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={newCustomer.address || ""}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
-                  placeholder="Enter customer address"
-                  rows={2}
-                />
+                <Textarea id="address" value={newCustomer.address || ""} onChange={e => setNewCustomer({
+                ...newCustomer,
+                address: e.target.value
+              })} placeholder="Enter customer address" rows={2} />
               </div>
 
                 <div>
                   <Label htmlFor="channel">Customer Type</Label>
-                  <Select
-                    value={newCustomer.channel}
-                    onValueChange={(value) => setNewCustomer({ ...newCustomer, channel: value as 'walk-in' | 'retailer' | 'restaurant' | 'wholesaler' })}
-                  >
+                  <Select value={newCustomer.channel} onValueChange={value => setNewCustomer({
+                ...newCustomer,
+                channel: value as any
+              })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -143,24 +132,13 @@ export default function Customers() {
                 </div>
                 <div>
                   <Label htmlFor="credit-limit">Credit Limit (₦)</Label>
-                  <Input
-                    id="credit-limit"
-                    type="number"
-                    value={newCustomer.credit_limit || ""}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, credit_limit: Number(e.target.value) })}
-                  />
+                  <Input id="credit-limit" type="number" value={newCustomer.credit_limit || ""} onChange={e => setNewCustomer({
+                ...newCustomer,
+                credit_limit: Number(e.target.value)
+              })} />
                 </div>
 
-              <div>
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={newCustomer.notes || ""}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, notes: e.target.value })}
-                  placeholder="Additional notes about this customer"
-                  rows={2}
-                />
-              </div>
+              
 
               <div className="flex justify-end space-x-2 pt-4">
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -234,12 +212,7 @@ export default function Customers() {
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search customers by name or phone..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
+              <Input placeholder="Search customers by name or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
             </div>
             <Select value={filterChannel} onValueChange={setFilterChannel}>
               <SelectTrigger className="w-full md:w-48">
@@ -280,26 +253,21 @@ export default function Customers() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCustomers.map((customer) => (
-                <TableRow key={customer.id}>
+              {filteredCustomers.map(customer => <TableRow key={customer.id}>
                   <TableCell>
                     <div>
                       <p className="font-medium">{customer.name}</p>
-                      {customer.address && (
-                        <p className="text-xs text-muted-foreground flex items-center mt-1">
+                      {customer.address && <p className="text-xs text-muted-foreground flex items-center mt-1">
                           <MapPin className="h-3 w-3 mr-1" />
                           {customer.address.slice(0, 30)}...
-                        </p>
-                      )}
+                        </p>}
                     </div>
                   </TableCell>
                   <TableCell>
-                    {customer.phone && (
-                      <div className="flex items-center text-sm">
+                    {customer.phone && <div className="flex items-center text-sm">
                         <Phone className="h-3 w-3 mr-1" />
                         {customer.phone}
-                      </div>
-                    )}
+                      </div>}
                   </TableCell>
                   <TableCell>
                     <Badge variant={channelColors[customer.channel]}>
@@ -330,22 +298,15 @@ export default function Customers() {
                        <Button variant="ghost" size="sm" onClick={() => updateCustomer && updateCustomer(customer.id, customer)}>
                          <Edit className="h-4 w-4" />
                        </Button>
-                       <Button 
-                         variant="ghost" 
-                         size="sm" 
-                         className="text-destructive hover:text-destructive"
-                         onClick={() => deleteCustomer && deleteCustomer(customer.id)}
-                       >
+                       <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteCustomer && deleteCustomer(customer.id)}>
                          <Trash2 className="h-4 w-4" />
                        </Button>
                      </div>
                    </TableCell>
-                </TableRow>
-              ))}
+                </TableRow>)}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>;
 }
