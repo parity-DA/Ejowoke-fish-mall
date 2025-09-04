@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useInventory, type InventoryItem } from '@/hooks/useInventory';
+import { useUserRoles } from '@/hooks/useUserRoles';
 import { Plus, Package, AlertTriangle, TrendingUp, Edit, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export default function Inventory() {
   const { inventory, loading, addInventoryItem, updateInventoryItem, deleteInventoryItem, refetch } = useInventory();
+  const { isSuperAdmin } = useUserRoles();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -339,130 +341,132 @@ export default function Inventory() {
                   
                   {/* Quick Actions */}
                   <div className="flex gap-1 pt-1">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="flex-1 h-8 text-xs"
-                          onClick={() => setEditingItem(item)}
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          Edit
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle>Edit Inventory Item</DialogTitle>
-                          <DialogDescription>
-                            Update the details of this inventory item.
-                          </DialogDescription>
-                        </DialogHeader>
-                        {editingItem && (
-                          <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                              <Label>Product Name</Label>
-                              <Input
-                                value={editingItem.name}
-                                onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                                placeholder="Fresh Catfish"
-                              />
-                            </div>
-                            <div className="grid gap-2">
-                              <Label>Size</Label>
-                              <Input
-                                value={editingItem.size || ''}
-                                onChange={(e) => setEditingItem({ ...editingItem, size: e.target.value })}
-                                placeholder="e.g., 1kg, 500g, 2.5kg"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="grid gap-2">
-                                <Label>Current Stock (kg)</Label>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={editingItem.stock_quantity}
-                                  onChange={(e) => setEditingItem({ ...editingItem, stock_quantity: Number(e.target.value) })}
-                                />
-                              </div>
-                              <div className="grid gap-2">
-                                <Label>Current Pieces</Label>
-                                <Input
-                                  type="number"
-                                  value={editingItem.total_pieces || 0}
-                                  onChange={(e) => setEditingItem({ ...editingItem, total_pieces: Number(e.target.value) })}
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="grid gap-2">
-                                <Label>Total kg Supplied</Label>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={editingItem.total_kg_supplied}
-                                  onChange={(e) => setEditingItem({ ...editingItem, total_kg_supplied: Number(e.target.value) })}
-                                />
-                              </div>
-                              <div className="grid gap-2">
-                                <Label>Total Pieces Supplied</Label>
-                                <Input
-                                  type="number"
-                                  value={editingItem.total_pieces_supplied || 0}
-                                  onChange={(e) => setEditingItem({ ...editingItem, total_pieces_supplied: Number(e.target.value) })}
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="grid gap-2">
-                                <Label>Cost Price per kg (₦)</Label>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={editingItem.cost_price}
-                                  onChange={(e) => setEditingItem({ ...editingItem, cost_price: Number(e.target.value) })}
-                                />
-                              </div>
-                              <div className="grid gap-2">
-                                <Label>Selling Price per kg (₦)</Label>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={editingItem.selling_price}
-                                  onChange={(e) => setEditingItem({ ...editingItem, selling_price: Number(e.target.value) })}
-                                />
-                              </div>
-                            </div>
-                            <div className="grid gap-2">
-                              <Label>Minimum Stock (kg)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                value={editingItem.minimum_stock_kg}
-                                onChange={(e) => setEditingItem({ ...editingItem, minimum_stock_kg: Number(e.target.value) })}
-                              />
-                            </div>
-                            <div className="grid gap-2">
-                              <Label>Barcode (Optional)</Label>
-                              <Input
-                                value={editingItem.barcode || ''}
-                                onChange={(e) => setEditingItem({ ...editingItem, barcode: e.target.value })}
-                                placeholder="Product barcode"
-                              />
-                            </div>
-                          </div>
-                        )}
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setEditingItem(null)}>
-                            Cancel
+                    {isSuperAdmin && (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="flex-1 h-8 text-xs"
+                            onClick={() => setEditingItem(item)}
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Edit
                           </Button>
-                          <Button onClick={handleUpdateItem}>
-                            Update Item
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>Edit Inventory Item</DialogTitle>
+                            <DialogDescription>
+                              Update the details of this inventory item.
+                            </DialogDescription>
+                          </DialogHeader>
+                          {editingItem && (
+                            <div className="grid gap-4 py-4">
+                              <div className="grid gap-2">
+                                <Label>Product Name</Label>
+                                <Input
+                                  value={editingItem.name}
+                                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                                  placeholder="Fresh Catfish"
+                                />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label>Size</Label>
+                                <Input
+                                  value={editingItem.size || ''}
+                                  onChange={(e) => setEditingItem({ ...editingItem, size: e.target.value })}
+                                  placeholder="e.g., 1kg, 500g, 2.5kg"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                  <Label>Current Stock (kg)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingItem.stock_quantity}
+                                    onChange={(e) => setEditingItem({ ...editingItem, stock_quantity: Number(e.target.value) })}
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label>Current Pieces</Label>
+                                  <Input
+                                    type="number"
+                                    value={editingItem.total_pieces || 0}
+                                    onChange={(e) => setEditingItem({ ...editingItem, total_pieces: Number(e.target.value) })}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                  <Label>Total kg Supplied</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingItem.total_kg_supplied}
+                                    onChange={(e) => setEditingItem({ ...editingItem, total_kg_supplied: Number(e.target.value) })}
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label>Total Pieces Supplied</Label>
+                                  <Input
+                                    type="number"
+                                    value={editingItem.total_pieces_supplied || 0}
+                                    onChange={(e) => setEditingItem({ ...editingItem, total_pieces_supplied: Number(e.target.value) })}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                  <Label>Cost Price per kg (₦)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingItem.cost_price}
+                                    onChange={(e) => setEditingItem({ ...editingItem, cost_price: Number(e.target.value) })}
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label>Selling Price per kg (₦)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingItem.selling_price}
+                                    onChange={(e) => setEditingItem({ ...editingItem, selling_price: Number(e.target.value) })}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid gap-2">
+                                <Label>Minimum Stock (kg)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={editingItem.minimum_stock_kg}
+                                  onChange={(e) => setEditingItem({ ...editingItem, minimum_stock_kg: Number(e.target.value) })}
+                                />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label>Barcode (Optional)</Label>
+                                <Input
+                                  value={editingItem.barcode || ''}
+                                  onChange={(e) => setEditingItem({ ...editingItem, barcode: e.target.value })}
+                                  placeholder="Product barcode"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setEditingItem(null)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleUpdateItem}>
+                              Update Item
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="sm" 
@@ -548,147 +552,149 @@ export default function Inventory() {
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={() => setEditingItem(item)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle>Edit Inventory Item</DialogTitle>
-                              <DialogDescription>
-                                Update the details of this inventory item.
-                              </DialogDescription>
-                            </DialogHeader>
-                            {editingItem && (
-                              <div className="grid gap-4 py-4">
-                                <div className="grid gap-2">
-                                  <Label>Product Name</Label>
-                                  <Input
-                                    value={editingItem.name}
-                                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                                    placeholder="Fresh Catfish"
-                                  />
-                                </div>
-                                <div className="grid gap-2">
-                                  <Label>Size</Label>
-                                  <Input
-                                    value={editingItem.size || ''}
-                                    onChange={(e) => setEditingItem({ ...editingItem, size: e.target.value })}
-                                    placeholder="e.g., 1kg, 500g, 2.5kg"
-                                  />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div className="grid gap-2">
-                                    <Label>Current Stock (kg)</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={editingItem.stock_quantity}
-                                      onChange={(e) => setEditingItem({ ...editingItem, stock_quantity: Number(e.target.value) })}
-                                    />
-                                  </div>
-                                  <div className="grid gap-2">
-                                    <Label>Current Pieces</Label>
-                                    <Input
-                                      type="number"
-                                      value={editingItem.total_pieces || 0}
-                                      onChange={(e) => setEditingItem({ ...editingItem, total_pieces: Number(e.target.value) })}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div className="grid gap-2">
-                                    <Label>Total kg Supplied</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={editingItem.total_kg_supplied}
-                                      onChange={(e) => setEditingItem({ ...editingItem, total_kg_supplied: Number(e.target.value) })}
-                                    />
-                                  </div>
-                                  <div className="grid gap-2">
-                                    <Label>Total Pieces Supplied</Label>
-                                    <Input
-                                      type="number"
-                                      value={editingItem.total_pieces_supplied || 0}
-                                      onChange={(e) => setEditingItem({ ...editingItem, total_pieces_supplied: Number(e.target.value) })}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div className="grid gap-2">
-                                    <Label>Cost Price per kg (₦)</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={editingItem.cost_price}
-                                      onChange={(e) => setEditingItem({ ...editingItem, cost_price: Number(e.target.value) })}
-                                    />
-                                  </div>
-                                  <div className="grid gap-2">
-                                    <Label>Selling Price per kg (₦)</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={editingItem.selling_price}
-                                      onChange={(e) => setEditingItem({ ...editingItem, selling_price: Number(e.target.value) })}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="grid gap-2">
-                                  <Label>Minimum Stock (kg)</Label>
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={editingItem.minimum_stock_kg}
-                                    onChange={(e) => setEditingItem({ ...editingItem, minimum_stock_kg: Number(e.target.value) })}
-                                  />
-                                </div>
-                                <div className="grid gap-2">
-                                  <Label>Barcode (Optional)</Label>
-                                  <Input
-                                    value={editingItem.barcode || ''}
-                                    onChange={(e) => setEditingItem({ ...editingItem, barcode: e.target.value })}
-                                    placeholder="Product barcode"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            <DialogFooter>
-                              <Button variant="outline" onClick={() => setEditingItem(null)}>
-                                Cancel
+                      {isSuperAdmin && (
+                        <div className="flex items-center space-x-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => setEditingItem(item)}>
+                                <Edit className="h-4 w-4" />
                               </Button>
-                              <Button onClick={handleUpdateItem}>
-                                Update Item
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>Edit Inventory Item</DialogTitle>
+                                <DialogDescription>
+                                  Update the details of this inventory item.
+                                </DialogDescription>
+                              </DialogHeader>
+                              {editingItem && (
+                                <div className="grid gap-4 py-4">
+                                  <div className="grid gap-2">
+                                    <Label>Product Name</Label>
+                                    <Input
+                                      value={editingItem.name}
+                                      onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                                      placeholder="Fresh Catfish"
+                                    />
+                                  </div>
+                                  <div className="grid gap-2">
+                                    <Label>Size</Label>
+                                    <Input
+                                      value={editingItem.size || ''}
+                                      onChange={(e) => setEditingItem({ ...editingItem, size: e.target.value })}
+                                      placeholder="e.g., 1kg, 500g, 2.5kg"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                      <Label>Current Stock (kg)</Label>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={editingItem.stock_quantity}
+                                        onChange={(e) => setEditingItem({ ...editingItem, stock_quantity: Number(e.target.value) })}
+                                      />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label>Current Pieces</Label>
+                                      <Input
+                                        type="number"
+                                        value={editingItem.total_pieces || 0}
+                                        onChange={(e) => setEditingItem({ ...editingItem, total_pieces: Number(e.target.value) })}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                      <Label>Total kg Supplied</Label>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={editingItem.total_kg_supplied}
+                                        onChange={(e) => setEditingItem({ ...editingItem, total_kg_supplied: Number(e.target.value) })}
+                                      />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label>Total Pieces Supplied</Label>
+                                      <Input
+                                        type="number"
+                                        value={editingItem.total_pieces_supplied || 0}
+                                        onChange={(e) => setEditingItem({ ...editingItem, total_pieces_supplied: Number(e.target.value) })}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                      <Label>Cost Price per kg (₦)</Label>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={editingItem.cost_price}
+                                        onChange={(e) => setEditingItem({ ...editingItem, cost_price: Number(e.target.value) })}
+                                      />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label>Selling Price per kg (₦)</Label>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={editingItem.selling_price}
+                                        onChange={(e) => setEditingItem({ ...editingItem, selling_price: Number(e.target.value) })}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="grid gap-2">
+                                    <Label>Minimum Stock (kg)</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={editingItem.minimum_stock_kg}
+                                      onChange={(e) => setEditingItem({ ...editingItem, minimum_stock_kg: Number(e.target.value) })}
+                                    />
+                                  </div>
+                                  <div className="grid gap-2">
+                                    <Label>Barcode (Optional)</Label>
+                                    <Input
+                                      value={editingItem.barcode || ''}
+                                      onChange={(e) => setEditingItem({ ...editingItem, barcode: e.target.value })}
+                                      placeholder="Product barcode"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setEditingItem(null)}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleUpdateItem}>
+                                  Update Item
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <Trash2 className="h-4 w-4" />
                               </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Inventory Item</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete "{item.name}"? This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteItem(item.id)}>
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Inventory Item</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{item.name}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteItem(item.id)}>
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
