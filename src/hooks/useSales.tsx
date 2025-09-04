@@ -8,6 +8,7 @@ export interface Sale {
   user_id: string;
   customer_id?: string;
   total_amount: number;
+  amount_paid?: number;
   discount?: number;
   payment_method: 'cash' | 'card' | 'transfer' | 'credit';
   status: 'pending' | 'completed' | 'cancelled';
@@ -444,6 +445,48 @@ export const useSales = () => {
     };
   }, [user]);
 
+  const recordPayment = async (saleId: string, amount: number) => {
+    if (!user) return;
+
+    try {
+      // First, get the sale to calculate the new amount paid
+      const { data: sale, error: fetchError } = await supabase
+        .from('sales')
+        .select('total_amount, amount_paid')
+        .eq('id', saleId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const newAmountPaid = (sale.amount_paid || 0) + amount;
+      const newStatus = newAmountPaid >= sale.total_amount ? 'completed' : 'pending';
+
+      const { error: updateError } = await supabase
+        .from('sales')
+        .update({
+          amount_paid: newAmountPaid,
+          status: newStatus,
+        })
+        .eq('id', saleId);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: 'Payment recorded successfully!',
+        description: `₦${amount.toLocaleString()} has been added to the sale.`,
+      });
+
+      fetchSales();
+    } catch (error: any) {
+      toast({
+        title: 'Error recording payment',
+        description: error.message,
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   return {
     sales,
     loading,
@@ -451,6 +494,7 @@ export const useSales = () => {
     updateSale,
     updateSaleStatus,
     deleteSale,
+    recordPayment,
     refetch: fetchSales,
   };
 };
