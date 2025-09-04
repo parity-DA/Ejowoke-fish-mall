@@ -205,32 +205,25 @@ export function Layout({ children }: LayoutProps) {
             <Menu className="h-5 w-5" />
           </Button>
           
-          <div className="flex flex-1 items-center justify-between px-4">
+          <div className="flex flex-1 items-center px-4">
+            {/* Mobile-only logo */}
             <div className="lg:hidden flex items-center space-x-2">
               <Fish className="h-6 w-6 text-primary" />
               <span className="font-semibold text-primary">EJowoke</span>
             </div>
             
-            <div className="flex items-center space-x-4">
+            {/* User profile section, pushed to the right */}
+            <div className="flex items-center space-x-4 ml-auto">
               <div className="text-sm text-muted-foreground hidden sm:block">
                 Welcome back, <span className="font-medium text-foreground">{user?.email?.split('@')[0]}</span>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-full bg-gradient-primary flex items-center justify-center">
-                      <User className="h-3 w-3 text-white" />
-                    </div>
-                    <span className="hidden sm:inline text-sm">{user?.email}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="h-8 w-8 rounded-full bg-gradient-primary flex items-center justify-center">
+                <User className="h-4 w-4 text-white" />
+              </div>
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </Button>
             </div>
           </div>
         </div>
