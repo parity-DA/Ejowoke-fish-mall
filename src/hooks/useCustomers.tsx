@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { AuthError } from '@supabase/supabase-js';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 
@@ -27,7 +26,7 @@ export const useCustomers = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchCustomers = useCallback(async () => {
+  const fetchCustomers = async () => {
     if (!user) return;
 
     try {
@@ -42,16 +41,16 @@ export const useCustomers = () => {
         ...customer,
         channel: customer.channel as 'walk-in' | 'retailer' | 'restaurant' | 'wholesaler'
       })));
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error fetching customers',
-        description: (error as AuthError).message,
+        description: error.message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  }, [user, toast]);
+  };
 
   const addCustomer = async (customerData: Omit<Customer, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
     if (!user) return;
@@ -71,10 +70,10 @@ export const useCustomers = () => {
       });
 
       return data;
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error adding customer',
-        description: (error as AuthError).message,
+        description: error.message,
         variant: 'destructive',
       });
       throw error;
@@ -99,10 +98,10 @@ export const useCustomers = () => {
       });
 
       return data;
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error updating customer',
-        description: (error as AuthError).message,
+        description: error.message,
         variant: 'destructive',
       });
       throw error;
@@ -122,10 +121,10 @@ export const useCustomers = () => {
       toast({
         title: 'Customer deleted successfully!',
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error deleting customer',
-        description: (error as AuthError).message,
+        description: error.message,
         variant: 'destructive',
       });
       throw error;
@@ -134,7 +133,7 @@ export const useCustomers = () => {
 
   useEffect(() => {
     fetchCustomers();
-  }, [user, fetchCustomers]);
+  }, [user]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -154,7 +153,7 @@ export const useCustomers = () => {
           if (payload.eventType === 'INSERT') {
             setCustomers(prev => [payload.new as Customer, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
-            setCustomers(prev => prev.map(customer =>
+            setCustomers(prev => prev.map(customer => 
               customer.id === payload.new.id ? payload.new as Customer : customer
             ));
           } else if (payload.eventType === 'DELETE') {
