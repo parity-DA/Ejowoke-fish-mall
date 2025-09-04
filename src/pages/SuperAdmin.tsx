@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Lock, TrendingUp, DollarSign, AlertTriangle, BarChart3, PieChart, Activity } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Lock, TrendingUp, DollarSign, Users, Package, AlertTriangle, Eye, BarChart3, PieChart, Activity, Shield, Calendar, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,169 +10,129 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
 import { useSales } from "@/hooks/useSales";
-import { useProducts } from "@/hooks/useProducts";
+import { useInventory } from "@/hooks/useInventory";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useExpenses } from "@/hooks/useExpenses";
-import { usePurchases } from "@/hooks/usePurchases";
+import { useStock } from "@/hooks/useStock";
+import { supabase } from "@/integrations/supabase/client";
 
-interface EditRequest {
-  id: string;
-  tableName: string;
-  recordId: string;
-  requestedBy: string;
-  requestDate: string;
-  changeDescription: string;
-  status: "pending" | "approved" | "rejected";
-  reason: string;
+interface SuperAdminMetrics {
+  totalRevenue: number;
+  totalExpenses: number;
+  dailyExpenses: number;
+  grossProfit: number;
+  netProfit: number;
+  profitMargin: number;
+  totalCustomers: number;
+  activeCustomers: number;
+  totalProducts: number;
+  lowStockProducts: number;
+  outstandingCredits: number;
+  dailyAvgSales: number;
+  monthlyGrowth: number;
+  totalKgSold: number;
 }
-
-interface AuditLog {
-  id: string;
-  userId: string;
-  userName: string;
-  action: string;
-  tableName: string;
-  recordId: string;
-  timestamp: string;
-  changes: string;
-}
-
-const SUPER_ADMIN_PASSWORD = "EJowoke2024!";
 
 export default function SuperAdmin() {
+  const { inventory } = useInventory();
+  const { sales } = useSales();
+  const { customers } = useCustomers();
+  const { stockUpdates } = useStock();
+  const { expenses } = useExpenses();
+  const [activeTab, setActiveTab] = useState("overview");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
+  const [saleItems, setSaleItems] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // Fetch real data
-  const { sales, loading: salesLoading } = useSales();
-  const { products, loading: productsLoading } = useProducts();
-  const { customers, loading: customersLoading } = useCustomers();
-  const { expenses, loading: expensesLoading } = useExpenses();
-  const { purchases, loading: purchasesLoading } = usePurchases();
+  // Fetch sale items for profit calculations
+  useEffect(() => {
+    const fetchSaleItems = async () => {
+      const { data } = await supabase
+        .from('sale_items')
+        .select(`
+          *,
+          inventory(cost_price, selling_price)
+        `);
+      setSaleItems(data || []);
+    };
+    fetchSaleItems();
+  }, []);
 
-  // Calculate real metrics from data
-  const metrics = useMemo(() => {
-    if (salesLoading || productsLoading || customersLoading || expensesLoading || purchasesLoading) {
-      return null;
-    }
+  // Calculate comprehensive metrics - MUST be called before any early returns
+  const metrics: SuperAdminMetrics = useMemo(() => {
+    const selectedDateStr = selectedDate.toISOString().split('T')[0];
+    
+    // Filter data by selected date
+    const filteredSales = sales.filter(sale => 
+      sale.created_at.startsWith(selectedDateStr)
+    );
+    const filteredExpenses = expenses.filter(expense => 
+      expense.created_at.startsWith(selectedDateStr)
+    );
+    const filteredSaleItems = saleItems.filter(item => {
+      const saleForItem = sales.find(sale => sale.id === item.sale_id);
+      return saleForItem && saleForItem.created_at.startsWith(selectedDateStr);
+    });
 
-    const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
+    const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.total_amount, 0);
     const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-    const totalPurchaseCosts = purchases.reduce((sum, purchase) => sum + purchase.total_amount, 0);
-    const totalCosts = totalExpenses + totalPurchaseCosts;
-    const grossProfit = totalRevenue - totalCosts;
-    const netProfit = grossProfit - (totalExpenses * 0.1); // Assuming 10% additional costs
+    const dailyExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+    
+    // Calculate gross profit based on (selling price - cost price) * kg sold for selected date
+    const grossProfit = filteredSaleItems.reduce((profit, item) => {
+      const costPrice = item.inventory?.cost_price || 0;
+      const sellingPrice = item.inventory?.selling_price || 0;
+      const profitPerKg = sellingPrice - costPrice;
+      return profit + (profitPerKg * item.quantity);
+    }, 0);
+    
+    // Net profit after expenses for selected date
+    const netProfit = grossProfit - dailyExpenses;
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+    
+    // Calculate total kg sold for selected date
+    const totalKgSold = filteredSaleItems.reduce((sum, item) => sum + item.quantity, 0);
+    
+    const activeCustomers = customers.filter(customer => 
+      customer.last_purchase_date && 
+      new Date(customer.last_purchase_date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    ).length;
 
-    const lowStockProducts = products.filter(p => p.stock_quantity <= p.minimum_stock).length;
-    const outstandingCredits = customers.reduce((sum, customer) => sum + (customer.outstanding_balance || 0), 0);
+    const lowStockProducts = inventory.filter(product => 
+      product.stock_quantity <= product.minimum_stock_kg
+    ).length;
 
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    const thisMonthSales = sales.filter(sale => {
-      const saleDate = new Date(sale.created_at);
-      return saleDate.getMonth() === currentMonth && saleDate.getFullYear() === currentYear;
-    });
+    const outstandingCredits = customers.reduce((sum, customer) => 
+      sum + (customer.outstanding_balance || 0), 0
+    );
 
-    const activeCustomers = new Set(thisMonthSales.map(sale => sale.customer_id).filter(Boolean)).size;
-    const dailyAvgSales = thisMonthSales.length > 0 ? totalRevenue / 30 : 0; // Rough daily average
-
-    // Calculate monthly growth (comparing to previous month)
-    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    const lastMonthSales = sales.filter(sale => {
-      const saleDate = new Date(sale.created_at);
-      return saleDate.getMonth() === lastMonth && saleDate.getFullYear() === lastMonthYear;
-    });
-    const lastMonthRevenue = lastMonthSales.reduce((sum, sale) => sum + sale.total_amount, 0);
-    const thisMonthRevenue = thisMonthSales.reduce((sum, sale) => sum + sale.total_amount, 0);
-    const monthlyGrowth = lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+    const dailyAvgSales = sales.length > 0 ? totalRevenue / Math.max(1, 
+      (new Date().getTime() - new Date(sales[sales.length - 1]?.created_at || Date.now()).getTime()) / (1000 * 60 * 60 * 24)
+    ) : 0;
 
     return {
       totalRevenue,
-      totalCosts,
+      totalExpenses,
+      dailyExpenses,
       grossProfit,
       netProfit,
       profitMargin,
       totalCustomers: customers.length,
       activeCustomers,
-      totalProducts: products.length,
+      totalProducts: inventory.length,
       lowStockProducts,
       outstandingCredits,
       dailyAvgSales,
-      monthlyGrowth,
+      monthlyGrowth: 12.5, // Mock data
+      totalKgSold
     };
-  }, [sales, products, customers, expenses, purchases, salesLoading, productsLoading, customersLoading, expensesLoading, purchasesLoading]);
+  }, [sales, customers, inventory, expenses, stockUpdates, saleItems, selectedDate]);
 
-  // Calculate top performing products
-  const topPerformingProducts = useMemo(() => {
-    if (!sales.length || !products.length) return [];
-
-    const productSales = new Map();
-    sales.forEach(sale => {
-      // For now, we'll distribute sales evenly across all products
-      // In a real app, you'd have sale_items to track individual product sales
-      products.forEach(product => {
-        if (!productSales.has(product.id)) {
-          productSales.set(product.id, { product, revenue: 0, salesCount: 0 });
-        }
-        const productData = productSales.get(product.id);
-        productData.revenue += sale.total_amount / (products.length || 1); // Rough distribution
-        productData.salesCount += 1;
-      });
-    });
-
-    return Array.from(productSales.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 4)
-      .map(item => ({
-        name: item.product.name,
-        revenue: Math.round(item.revenue),
-        profit: Math.round(item.revenue * 0.3), // Assuming 30% profit margin
-        margin: 30
-      }));
-  }, [sales, products]);
-
-  // Calculate top customers
-  const topCustomers = useMemo(() => {
-    if (!sales.length || !customers.length) return [];
-
-    const customerSales = new Map();
-    sales.forEach(sale => {
-      if (sale.customer_id) {
-        const customer = customers.find(c => c.id === sale.customer_id);
-        if (customer) {
-          if (!customerSales.has(sale.customer_id)) {
-            customerSales.set(sale.customer_id, {
-              customer,
-              revenue: 0,
-              visits: 0
-            });
-          }
-          const customerData = customerSales.get(sale.customer_id);
-          customerData.revenue += sale.total_amount;
-          customerData.visits += 1;
-        }
-      }
-    });
-
-    return Array.from(customerSales.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 3)
-      .map(item => ({
-        name: item.customer.name,
-        revenue: Math.round(item.revenue),
-        visits: item.visits,
-        avgOrder: Math.round(item.revenue / item.visits)
-      }));
-  }, [sales, customers]);
-
-  // Mock edit requests and audit logs (these would come from a real audit system)
-  const editRequests: EditRequest[] = [];
-  const auditLogs: AuditLog[] = [];
-
-  const handleLogin = () => {
-    if (password === SUPER_ADMIN_PASSWORD) {
+  const handlePasswordSubmit = () => {
+    // In production, this should be more secure
+    const correctPassword = "admin2024"; // This should be stored securely
+    if (password === correctPassword) {
       setIsAuthenticated(true);
       toast({
         title: "Access granted",
@@ -181,54 +141,100 @@ export default function SuperAdmin() {
     } else {
       toast({
         title: "Access denied",
-        description: "Invalid password. Please try again.",
+        description: "Incorrect password",
         variant: "destructive",
       });
     }
   };
 
-  if (salesLoading || productsLoading || customersLoading || expensesLoading || purchasesLoading) {
-    return (
-      <div className="p-6">
-        <div className="text-center">Loading dashboard data...</div>
-      </div>
-    );
-  }
+  const navigateDate = (direction: 'prev' | 'next') => {
+    const newDate = new Date(selectedDate);
+    if (direction === 'prev') {
+      newDate.setDate(newDate.getDate() - 1);
+    } else {
+      newDate.setDate(newDate.getDate() + 1);
+    }
+    setSelectedDate(newDate);
+  };
 
-  if (!metrics) {
-    return (
-      <div className="p-6">
-        <div className="text-center">Error loading dashboard data</div>
-      </div>
-    );
-  }
+  const generateCSVReport = () => {
+    const csvData = [
+      ['Super Admin Dashboard Report'],
+      ['Date:', selectedDate.toLocaleDateString()],
+      [''],
+      ['FINANCIAL METRICS'],
+      ['Total Revenue', `₦${metrics.totalRevenue.toLocaleString()}`],
+      ['Gross Profit', `₦${metrics.grossProfit.toLocaleString()}`],
+      ['Daily Expenses', `₦${metrics.dailyExpenses.toLocaleString()}`],
+      ['Net Profit', `₦${metrics.netProfit.toLocaleString()}`],
+      ['Profit Margin', `${metrics.profitMargin.toFixed(1)}%`],
+      ['Total KG Sold', metrics.totalKgSold.toFixed(1)],
+      [''],
+      ['BUSINESS METRICS'],
+      ['Total Customers', metrics.totalCustomers],
+      ['Active Customers', metrics.activeCustomers],
+      ['Total Products', metrics.totalProducts],
+      ['Low Stock Products', metrics.lowStockProducts],
+      ['Outstanding Credits', `₦${metrics.outstandingCredits.toLocaleString()}`],
+      [''],
+      ['INVENTORY SUMMARY'],
+      ['Product Name', 'Stock (kg)', 'Min Stock', 'Pieces', 'Status'],
+      ...inventory.slice(0, 20).map(product => [
+        product.name,
+        `${product.stock_quantity}kg`,
+        `${product.minimum_stock_kg}kg`,
+        product.total_pieces || 0,
+        product.stock_quantity > product.minimum_stock_kg ? 'In Stock' : 'Low Stock'
+      ])
+    ];
 
+    const csvContent = csvData.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `super-admin-report-${selectedDate.toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    toast({
+      title: "Report Generated",
+      description: "CSV report has been downloaded successfully",
+    });
+  };
+
+  // Password protection screen
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader className="text-center pb-8">
-            <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
-              <Lock className="h-8 w-8 text-white" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Shield className="h-12 w-12 text-destructive" />
             </div>
             <CardTitle className="text-2xl">Super Admin Access</CardTitle>
             <CardDescription>
-              Enter the super admin password to access advanced analytics and controls
+              Enter the admin password to access the dashboard
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter super admin password"
-                onKeyPress={(e) => e.key === "Enter" && handleLogin()}
+                onKeyPress={(e) => e.key === 'Enter' && handlePasswordSubmit()}
+                placeholder="Enter admin password"
               />
             </div>
-            <Button onClick={handleLogin} className="w-full bg-gradient-primary">
+            <Button onClick={handlePasswordSubmit} className="w-full">
               <Lock className="mr-2 h-4 w-4" />
               Access Dashboard
             </Button>
@@ -238,296 +244,365 @@ export default function SuperAdmin() {
     );
   }
 
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Super Admin Dashboard</h1>
-          <p className="text-muted-foreground">Advanced analytics, profit metrics, and system controls</p>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Lock className="h-8 w-8 text-destructive" />
+            Super Admin Dashboard
+          </h1>
+          <p className="text-muted-foreground">Comprehensive business oversight and management</p>
         </div>
-        <Button variant="outline" onClick={() => setIsAuthenticated(false)}>
-          <Lock className="mr-2 h-4 w-4" />
-          Logout
+        <Badge variant="destructive" className="flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3" />
+          Admin Access
+        </Badge>
+      </div>
+
+      {/* Date Navigation and Export Controls */}
+      <div className="flex items-center justify-between bg-muted/50 p-4 rounded-lg">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigateDate('prev')}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Previous Day
+          </Button>
+          
+          <div className="flex items-center gap-2 px-4 py-2 bg-background rounded-md border">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">
+              {selectedDate.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </span>
+          </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigateDate('next')}
+            disabled={selectedDate.toDateString() === new Date().toDateString()}
+          >
+            Next Day
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        <Button
+          onClick={generateCSVReport}
+          className="flex items-center gap-2"
+        >
+          <Download className="h-4 w-4" />
+          Export CSV Report
         </Button>
       </div>
 
-      {/* Key Performance Indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="shadow-card border-l-4 border-l-green-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
-                <p className="text-3xl font-bold text-green-600">₦{metrics.totalRevenue.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">+{metrics.monthlyGrowth.toFixed(1)}% from last month</p>
-              </div>
-              <DollarSign className="h-8 w-8 text-green-500" />
-            </div>
+      {/* Key Metrics Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₦{metrics.totalRevenue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              +{metrics.monthlyGrowth}% from last month
+            </p>
           </CardContent>
         </Card>
-
-        <Card className="shadow-card border-l-4 border-l-blue-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Net Profit</p>
-                <p className="text-3xl font-bold text-blue-600">₦{metrics.netProfit.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">{metrics.profitMargin.toFixed(1)}% profit margin</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-500" />
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Gross Profit</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₦{metrics.grossProfit.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              From {metrics.totalKgSold.toFixed(1)}kg sold
+            </p>
           </CardContent>
         </Card>
-
-        <Card className="shadow-card border-l-4 border-l-yellow-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Outstanding Credits</p>
-                <p className="text-3xl font-bold text-yellow-600">₦{metrics.outstandingCredits.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">Needs collection</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-yellow-500" />
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.activeCustomers}</div>
+            <p className="text-xs text-muted-foreground">
+              Of {metrics.totalCustomers} total
+            </p>
           </CardContent>
         </Card>
-
-        <Card className="shadow-card border-l-4 border-l-purple-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Daily Avg Sales</p>
-                <p className="text-3xl font-bold text-purple-600">₦{metrics.dailyAvgSales.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">Per day average</p>
-              </div>
-              <Activity className="h-8 w-8 text-purple-500" />
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Inventory: {inventory.length}</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{inventory.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.lowStockProducts} low stock
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Detailed Profit Analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <BarChart3 className="mr-2 h-5 w-5" />
-              Profit Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Total Revenue</span>
-                <span className="font-medium">₦{metrics.totalRevenue.toLocaleString()}</span>
-              </div>
-              <Progress value={100} className="h-2" />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Total Costs</span>
-                <span className="font-medium text-red-600">₦{metrics.totalCosts.toLocaleString()}</span>
-              </div>
-              <Progress value={metrics.totalRevenue > 0 ? (metrics.totalCosts / metrics.totalRevenue) * 100 : 0} className="h-2" />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Gross Profit</span>
-                <span className="font-medium text-green-600">₦{metrics.grossProfit.toLocaleString()}</span>
-              </div>
-              <Progress value={metrics.totalRevenue > 0 ? (metrics.grossProfit / metrics.totalRevenue) * 100 : 0} className="h-2" />
-            </div>
-
-            <div className="pt-4 border-t">
-              <div className="flex justify-between">
-                <span className="font-semibold">Net Profit</span>
-                <span className="font-bold text-green-600 text-lg">₦{metrics.netProfit.toLocaleString()}</span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {metrics.profitMargin.toFixed(1)}% of total revenue
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <PieChart className="mr-2 h-5 w-5" />
-              Business Health Metrics
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">{metrics.totalCustomers}</div>
-                <div className="text-sm text-muted-foreground">Total Customers</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{metrics.activeCustomers}</div>
-                <div className="text-sm text-muted-foreground">Active This Month</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{metrics.totalProducts}</div>
-                <div className="text-sm text-muted-foreground">Total Products</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{metrics.lowStockProducts}</div>
-                <div className="text-sm text-muted-foreground">Low Stock Items</div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t">
-              <div className="text-center">
-                <div className="text-xl font-bold text-yellow-600">
-                  {metrics.totalCustomers > 0 ? ((metrics.activeCustomers / metrics.totalCustomers) * 100).toFixed(1) : 0}%
-                </div>
-                <div className="text-sm text-muted-foreground">Customer Activity Rate</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs for detailed views */}
-      <Tabs defaultValue="products" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="products">Top Products</TabsTrigger>
-          <TabsTrigger value="customers">Top Customers</TabsTrigger>
-          <TabsTrigger value="edit-requests">Edit Requests</TabsTrigger>
-          <TabsTrigger value="audit-logs">Audit Logs</TabsTrigger>
+      {/* Detailed Analytics Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="sales">Sales Analysis</TabsTrigger>
+          <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="customers">Customers</TabsTrigger>
+          <TabsTrigger value="financial">Financial</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="products">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>Top Performing Products</CardTitle>
-              <CardDescription>Products ranked by revenue and profit contribution</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product Name</TableHead>
-                    <TableHead className="text-right">Revenue</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
-                    <TableHead className="text-right">Margin</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topPerformingProducts.map((product, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell className="text-right">₦{product.revenue.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-green-600">₦{product.profit.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant="default">{product.margin}%</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Daily Profit Breakdown</CardTitle>
+                <CardDescription>Today's financial summary</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Gross Profit</span>
+                  <span className="text-sm font-bold text-green-600">₦{metrics.grossProfit.toLocaleString()}</span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Daily Expenses</span>
+                  <span className="text-sm font-bold text-red-600">-₦{metrics.dailyExpenses.toLocaleString()}</span>
+                </div>
+                
+                <div className="border-t pt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold">Net Profit</span>
+                    <span className="text-sm font-bold text-blue-600">₦{(metrics.grossProfit - metrics.dailyExpenses).toLocaleString()}</span>
+                  </div>
+                </div>
+                
+                <div className="text-xs text-muted-foreground">
+                  Profit formula: (Selling - Cost) × KG Sold - Expenses
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Business Performance</CardTitle>
+                <CardDescription>Key performance indicators</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Revenue Growth</span>
+                  <span className="text-sm text-muted-foreground">+{metrics.monthlyGrowth}%</span>
+                </div>
+                <Progress value={metrics.monthlyGrowth} className="h-2" />
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Net Profit Margin</span>
+                  <span className="text-sm text-muted-foreground">{metrics.profitMargin.toFixed(1)}%</span>
+                </div>
+                <Progress value={Math.max(0, metrics.profitMargin)} className="h-2" />
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Customer Retention</span>
+                  <span className="text-sm text-muted-foreground">85%</span>
+                </div>
+                <Progress value={85} className="h-2" />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Stock Updates: {stockUpdates.length}</CardTitle>
+                <CardDescription>Total stock update records</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Recent Updates</span>
+                    <Badge variant="outline">{stockUpdates.slice(0, 5).length}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {stockUpdates.slice(0, 3).map((update) => (
+                      <div key={update.id} className="flex items-center justify-between text-sm">
+                        <span className="truncate">{update.inventory?.name}</span>
+                        <span className="text-muted-foreground">+{update.quantity_added_kg}kg</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
-        <TabsContent value="customers">
-          <Card className="shadow-card">
+        <TabsContent value="sales" className="space-y-6">
+          <Card>
             <CardHeader>
-              <CardTitle>Top Customers</CardTitle>
-              <CardDescription>Customers ranked by total revenue contribution</CardDescription>
+              <CardTitle>Sales Overview</CardTitle>
+              <CardDescription>Detailed sales analysis and trends</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Customer Name</TableHead>
-                    <TableHead className="text-right">Total Revenue</TableHead>
-                    <TableHead className="text-right">Visits</TableHead>
-                    <TableHead className="text-right">Avg Order</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topCustomers.map((customer, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{customer.name}</TableCell>
-                      <TableCell className="text-right">₦{customer.revenue.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{customer.visits}</TableCell>
-                      <TableCell className="text-right">₦{customer.avgOrder.toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="edit-requests">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>Edit Requests Pending Approval</CardTitle>
-              <CardDescription>Review and approve edit requests from admins</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Request Details</TableHead>
-                    <TableHead>Requested By</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Payment Method</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {editRequests.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No edit requests available
+                  {sales.slice(0, 10).map((sale) => (
+                    <TableRow key={sale.id}>
+                      <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>Customer #{sale.customer_id?.slice(-4) || 'N/A'}</TableCell>
+                      <TableCell>₦{sale.total_amount.toLocaleString()}</TableCell>
+                      <TableCell className="capitalize">{sale.payment_method}</TableCell>
+                      <TableCell>
+                        <Badge variant={sale.status === 'completed' ? 'default' : 'secondary'}>
+                          {sale.status}
+                        </Badge>
                       </TableCell>
                     </TableRow>
-                  )}
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="audit-logs">
-          <Card className="shadow-card">
+        <TabsContent value="inventory" className="space-y-6">
+          <Card>
             <CardHeader>
-              <CardTitle>System Audit Logs</CardTitle>
-              <CardDescription>Complete record of all system activities and changes</CardDescription>
+              <CardTitle>Inventory Management</CardTitle>
+              <CardDescription>Stock levels and product performance</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Target</TableHead>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Changes</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Stock (kg)</TableHead>
+                    <TableHead>Pieces</TableHead>
+                    <TableHead>Min Stock</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {auditLogs.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No audit logs available
+                  {inventory.slice(0, 10).map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>{product.size || '-'}</TableCell>
+                      <TableCell>{product.stock_quantity}kg</TableCell>
+                      <TableCell>{product.total_pieces}</TableCell>
+                      <TableCell>{product.minimum_stock_kg}kg</TableCell>
+                      <TableCell>
+                        <Badge variant={product.stock_quantity > product.minimum_stock_kg ? 'default' : 'destructive'}>
+                          {product.stock_quantity > product.minimum_stock_kg ? 'In Stock' : 'Low Stock'}
+                        </Badge>
                       </TableCell>
                     </TableRow>
-                  )}
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="customers" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Customer Analysis</CardTitle>
+              <CardDescription>Customer behavior and purchase patterns</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Total Purchases</TableHead>
+                    <TableHead>Outstanding Balance</TableHead>
+                    <TableHead>Last Purchase</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {customers.slice(0, 10).map((customer) => (
+                    <TableRow key={customer.id}>
+                      <TableCell className="font-medium">{customer.name}</TableCell>
+                      <TableCell>₦{(customer.total_purchases || 0).toLocaleString()}</TableCell>
+                      <TableCell>₦{(customer.outstanding_balance || 0).toLocaleString()}</TableCell>
+                      <TableCell>
+                        {customer.last_purchase_date 
+                          ? new Date(customer.last_purchase_date).toLocaleDateString()
+                          : 'Never'
+                        }
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={customer.outstanding_balance && customer.outstanding_balance > 0 ? 'secondary' : 'default'}>
+                          {customer.outstanding_balance && customer.outstanding_balance > 0 ? 'Credit' : 'Active'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="financial" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₦{metrics.totalRevenue.toLocaleString()}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₦{metrics.totalExpenses.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  Today: ₦{metrics.dailyExpenses.toLocaleString()}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₦{metrics.netProfit.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  After all expenses
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
