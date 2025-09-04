@@ -167,7 +167,7 @@ export const useSales = () => {
 
       toast({
         title: 'Sale completed successfully!',
-        description: `Sale total: ₦${total_amount.toLocaleString()}`,
+        description: `Sale total: ₦${saleData.total_amount.toLocaleString()}`,
       });
 
       return sale;
