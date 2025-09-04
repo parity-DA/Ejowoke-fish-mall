@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { useExpenses } from "@/hooks/useExpenses";
+import { useExpenses, Expense } from "@/hooks/useExpenses";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
 
@@ -29,6 +29,8 @@ export default function Expenses() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
   const [newExpense, setNewExpense] = useState({
     title: "",
@@ -70,6 +72,37 @@ export default function Expenses() {
         payment_method: "cash",
       });
       setIsAddDialogOpen(false);
+    }
+  };
+
+  const handleOpenEditDialog = (expense: Expense) => {
+    setEditingExpense(expense);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateExpense = async () => {
+    if (!editingExpense) return;
+
+    if (!editingExpense.amount || !editingExpense.title) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in amount and title.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await updateExpense(editingExpense.id, {
+      title: editingExpense.title,
+      description: editingExpense.description,
+      category: editingExpense.category,
+      amount: editingExpense.amount,
+      payment_method: editingExpense.payment_method,
+    });
+
+    if (!error) {
+      setIsEditDialogOpen(false);
+      setEditingExpense(null);
     }
   };
 
@@ -200,6 +233,118 @@ export default function Expenses() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Edit Expense Dialog */}
+      {editingExpense && (
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Expense</DialogTitle>
+              <DialogDescription>
+                Update the details of your expense.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-title">Title *</Label>
+                <Input
+                  id="edit-title"
+                  value={editingExpense.title}
+                  onChange={(e) =>
+                    setEditingExpense({ ...editingExpense, title: e.target.value })
+                  }
+                  placeholder="Expense title"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-amount">Amount (₦) *</Label>
+                  <Input
+                    id="edit-amount"
+                    type="number"
+                    value={editingExpense.amount || ""}
+                    onChange={(e) =>
+                      setEditingExpense({
+                        ...editingExpense,
+                        amount: Number(e.target.value),
+                      })
+                    }
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-payment-method">Payment Method *</Label>
+                  <Select
+                    value={editingExpense.payment_method}
+                    onValueChange={(value) =>
+                      setEditingExpense({ ...editingExpense, payment_method: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="pos">POS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-category">Category</Label>
+                <Select
+                  value={editingExpense.category || ''}
+                  onValueChange={(value) =>
+                    setEditingExpense({ ...editingExpense, category: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategories.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.icon} {category.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editingExpense.description || ''}
+                  onChange={(e) =>
+                    setEditingExpense({
+                      ...editingExpense,
+                      description: e.target.value,
+                    })
+                  }
+                  placeholder="Describe the expense..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateExpense} className="bg-gradient-primary">
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -343,9 +488,7 @@ export default function Expenses() {
                     <TableCell className="text-right">
                       {isSuperAdmin && (
                         <div className="flex justify-end space-x-2">
-                        {/* TODO: The update functionality is not fully implemented.
-                            This currently just re-sends the same object. A dialog form is needed to edit the expense. */}
-                          <Button variant="ghost" size="sm" onClick={() => updateExpense && updateExpense(expense.id, expense)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenEditDialog(expense)}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button 
