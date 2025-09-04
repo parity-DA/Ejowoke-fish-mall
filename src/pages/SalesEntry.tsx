@@ -157,7 +157,8 @@ export default function SalesEntry() {
           pieces_sold: item.totalPiecesSold || 0
         })),
         discount: discount,
-        total_amount: total
+        total_amount: total,
+        amount_paid: amountPaid
       });
 
       // Reset form
