@@ -9,15 +9,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Eye, Edit, Trash2, Search, Plus, Minus } from 'lucide-react';
-import { useSales, Sale } from '@/hooks/useSales';
+import { useSales, Sale, SaleWithItems } from '@/hooks/useSales';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useInventory } from '@/hooks/useInventory';
+import { useUserRoles } from '@/hooks/useUserRoles';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
 export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewingSale, setViewingSale] = useState<SaleWithItems | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [editForm, setEditForm] = useState({
     customer_id: '',
@@ -36,6 +38,7 @@ export default function Sales() {
   const { sales, loading, deleteSale, updateSale } = useSales();
   const { customers } = useCustomers();
   const { inventory } = useInventory();
+  const { isSuperAdmin } = useUserRoles();
   const { toast } = useToast();
 
   const filteredSales = sales.filter(sale =>
@@ -49,6 +52,28 @@ export default function Sales() {
       await deleteSale(id);
     } catch (error) {
       console.error('Error deleting sale:', error);
+    }
+  };
+
+  const handleViewDetails = async (sale: Sale) => {
+    try {
+      const { data: saleItems, error } = await supabase
+        .from('sale_items')
+        .select('*, inventory(name)')
+        .eq('sale_id', sale.id);
+
+      if (error) throw error;
+
+      setViewingSale({
+        ...sale,
+        sale_items: saleItems || [],
+      });
+    } catch (error) {
+      toast({
+        title: 'Error loading sale details',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -296,47 +321,46 @@ export default function Sales() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            toast({
-                              title: 'View functionality',
-                              description: 'Sales details view coming soon!',
-                            });
-                          }}
+                          onClick={() => handleViewDetails(sale)}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(sale)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Trash2 className="h-4 w-4" />
+                        {isSuperAdmin && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(sale)}
+                            >
+                              <Edit className="h-4 w-4" />
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Sale</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete this sale? This action cannot be undone.
-                                Product stock will be restored to the original quantities.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(sale.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Sale</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete this sale? This action cannot be undone.
+                                    Product stock will be restored to the original quantities.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDelete(sale.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -346,6 +370,81 @@ export default function Sales() {
           )}
         </CardContent>
       </Card>
+
+      {/* View Sale Dialog */}
+      <Dialog open={!!viewingSale} onOpenChange={(open) => !open && setViewingSale(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Sale Details</DialogTitle>
+            <DialogDescription>
+              Transaction ID: {viewingSale?.id}
+            </DialogDescription>
+          </DialogHeader>
+          {viewingSale && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="font-medium">Customer</p>
+                  <p className="text-muted-foreground">{viewingSale.customer?.name || 'Walk-in Customer'}</p>
+                </div>
+                <div>
+                  <p className="font-medium">Date</p>
+                  <p className="text-muted-foreground">{format(new Date(viewingSale.created_at), 'MMM dd, yyyy HH:mm')}</p>
+                </div>
+                <div>
+                  <p className="font-medium">Status</p>
+                  {getStatusBadge(viewingSale.status)}
+                </div>
+              </div>
+              <div>
+                <p className="font-medium mb-2">Items Purchased</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Unit Price</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {viewingSale.sale_items.map(item => (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.inventory?.name || 'N/A'}</TableCell>
+                        <TableCell>{item.quantity} kg</TableCell>
+                        <TableCell>₦{item.unit_price.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₦{(item.quantity * item.unit_price).toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="pt-4 border-t">
+                <div className="flex justify-end space-x-4">
+                  <div className="text-right">
+                    <p className="text-muted-foreground">Subtotal</p>
+                    <p className="text-muted-foreground">Discount</p>
+                    <p className="font-semibold">Total Amount</p>
+                    <p className="text-muted-foreground mt-2">Amount Paid</p>
+                    <p className="font-semibold">Credit Owed</p>
+                  </div>
+                  <div className="text-right">
+                    <p>₦{(viewingSale.total_amount + (viewingSale.discount || 0)).toLocaleString()}</p>
+                    <p className="text-destructive">- ₦{(viewingSale.discount || 0).toLocaleString()}</p>
+                    <p className="font-semibold">₦{viewingSale.total_amount.toLocaleString()}</p>
+                    {/* TODO: Add amount_paid to sales table and pass it here */}
+                    <p className="mt-2">₦0.00</p>
+                    <p className="font-semibold text-orange-500">₦{viewingSale.total_amount.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewingSale(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Sale Dialog */}
       <Dialog open={!!editingSale} onOpenChange={(open) => !open && setEditingSale(null)}>
