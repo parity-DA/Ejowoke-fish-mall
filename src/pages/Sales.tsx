@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Edit, Trash2, Search, Plus, Minus } from 'lucide-react';
+import { Eye, Edit, Trash2, Search, Plus, Minus, DollarSign } from 'lucide-react';
 import { useSales, Sale, SaleWithItems } from '@/hooks/useSales';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useInventory } from '@/hooks/useInventory';
@@ -21,6 +21,8 @@ export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingSale, setViewingSale] = useState<SaleWithItems | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [payingSale, setPayingSale] = useState<Sale | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState(0);
   const [editForm, setEditForm] = useState({
     customer_id: '',
     payment_method: 'cash' as 'cash' | 'card' | 'transfer' | 'credit',
@@ -35,7 +37,7 @@ export default function Sales() {
     }>
   });
   
-  const { sales, loading, deleteSale, updateSale } = useSales();
+  const { sales, loading, deleteSale, updateSale, recordPayment } = useSales();
   const { customers } = useCustomers();
   const { inventory } = useInventory();
   const { isSuperAdmin } = useUserRoles();
@@ -327,6 +329,19 @@ export default function Sales() {
                         </Button>
                         {isSuperAdmin && (
                           <>
+                            {sale.status === 'pending' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setPayingSale(sale);
+                                  const balance = sale.total_amount - (sale.amount_paid || 0);
+                                  setPaymentAmount(balance);
+                                }}
+                              >
+                                <DollarSign className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
@@ -432,9 +447,8 @@ export default function Sales() {
                     <p>₦{(viewingSale.total_amount + (viewingSale.discount || 0)).toLocaleString()}</p>
                     <p className="text-destructive">- ₦{(viewingSale.discount || 0).toLocaleString()}</p>
                     <p className="font-semibold">₦{viewingSale.total_amount.toLocaleString()}</p>
-                    {/* TODO: Add amount_paid to sales table and pass it here */}
-                    <p className="mt-2">₦0.00</p>
-                    <p className="font-semibold text-orange-500">₦{viewingSale.total_amount.toLocaleString()}</p>
+                    <p className="mt-2">₦{(viewingSale.amount_paid || 0).toLocaleString()}</p>
+                    <p className="font-semibold text-orange-500">₦{(viewingSale.total_amount - (viewingSale.amount_paid || 0)).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -598,6 +612,57 @@ export default function Sales() {
             </Button>
             <Button onClick={handleSaveEdit}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Record Payment Dialog */}
+      <Dialog open={!!payingSale} onOpenChange={(open) => !open && setPayingSale(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>
+              Record a payment for sale ID: {payingSale?.id}
+            </DialogDescription>
+          </DialogHeader>
+          {payingSale && (
+            <div className="space-y-4">
+              <div>
+                <Label>Total Amount</Label>
+                <p className="font-medium">₦{payingSale.total_amount.toLocaleString()}</p>
+              </div>
+              <div>
+                <Label>Amount Paid</Label>
+                <p className="font-medium">₦{(payingSale.amount_paid || 0).toLocaleString()}</p>
+              </div>
+              <div>
+                <Label>Balance Due</Label>
+                <p className="font-medium text-orange-500">₦{(payingSale.total_amount - (payingSale.amount_paid || 0)).toLocaleString()}</p>
+              </div>
+              <div className="pt-4">
+                <Label htmlFor="payment-amount">Payment Amount</Label>
+                <Input
+                  id="payment-amount"
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayingSale(null)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (payingSale) {
+                  await recordPayment(payingSale.id, paymentAmount);
+                  setPayingSale(null);
+                  setPaymentAmount(0);
+                }
+              }}
+            >
+              Save Payment
             </Button>
           </DialogFooter>
         </DialogContent>
