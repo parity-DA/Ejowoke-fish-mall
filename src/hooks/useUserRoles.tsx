@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 
-type UserRole = 'super_admin' | 'admin' | 'user';
+export type UserRole = 'super_admin' | 'admin' | 'user';
 
 interface UserWithRole {
   id: string;
@@ -97,12 +97,17 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const assignRole = async (userId: string, role: UserRole) => {
+    if (userRole !== 'super_admin') {
+      const error = new Error("You do not have permission to assign roles.");
+      toast({ title: "Permission Denied", description: error.message, variant: "destructive" });
+      return { error };
+    }
+
     try {
       // Use the database function to avoid constraint issues
       const { error } = await supabase.rpc('assign_user_role', {
         target_user_id: userId,
-        new_role: role,
-        assigner_id: user?.id
+        new_role: role
       });
 
       if (error) {
@@ -133,9 +138,15 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteUser = async (userId: string) => {
+    if (userRole !== 'super_admin') {
+      const error = new Error("You do not have permission to delete users.");
+      toast({ title: "Permission Denied", description: error.message, variant: "destructive" });
+      return { error };
+    }
+
     try {
-      // Delete user using Supabase admin API
-      const { error } = await supabase.auth.admin.deleteUser(userId);
+      // Calling the secure RPC function to delete the user.
+      const { error } = await supabase.rpc('delete_user_securely', { user_id_to_delete: userId });
 
       if (error) {
         toast({
@@ -216,14 +227,10 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
     if (user) {
       fetchUserRole(user.id).then((role) => {
         setUserRole(role);
-        setLoading(false);
-      });
-
-      // Only super admins can see all users
-      fetchUserRole(user.id).then((role) => {
         if (role === 'super_admin') {
           fetchUsers();
         }
+        setLoading(false);
       });
     } else {
       setUserRole(null);
