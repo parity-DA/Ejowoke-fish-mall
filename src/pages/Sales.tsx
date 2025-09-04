@@ -2,17 +2,40 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Edit, Trash2, Search } from 'lucide-react';
-import { useSales } from '@/hooks/useSales';
+import { Eye, Edit, Trash2, Search, Plus, Minus } from 'lucide-react';
+import { useSales, Sale } from '@/hooks/useSales';
+import { useCustomers } from '@/hooks/useCustomers';
+import { useInventory } from '@/hooks/useInventory';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
 export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
-  const { sales, loading, deleteSale } = useSales();
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [editForm, setEditForm] = useState({
+    customer_id: '',
+    payment_method: 'cash' as 'cash' | 'card' | 'transfer' | 'credit',
+    status: 'completed' as 'pending' | 'completed' | 'cancelled',
+    items: [] as Array<{
+      id?: string;
+      product_id: string;
+      quantity: number;
+      unit_price: number;
+      pieces_sold?: number;
+      product_name?: string;
+    }>
+  });
+  
+  const { sales, loading, deleteSale, updateSale } = useSales();
+  const { customers } = useCustomers();
+  const { inventory } = useInventory();
   const { toast } = useToast();
 
   const filteredSales = sales.filter(sale =>
@@ -27,6 +50,103 @@ export default function Sales() {
     } catch (error) {
       console.error('Error deleting sale:', error);
     }
+  };
+
+  const handleEdit = async (sale: Sale) => {
+    // Fetch sale items for this sale
+    try {
+      const { data: saleItems } = await supabase
+        .from('sale_items')
+        .select('*, inventory(name)')
+        .eq('sale_id', sale.id);
+
+      setEditingSale(sale);
+      setEditForm({
+        customer_id: sale.customer_id || "walk-in",
+        payment_method: sale.payment_method,
+        status: sale.status,
+        items: saleItems?.map(item => ({
+          id: item.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          pieces_sold: item.pieces_sold || 0,
+          product_name: item.inventory?.name || 'Unknown Product'
+        })) || []
+      });
+    } catch (error) {
+      toast({
+        title: 'Error loading sale details',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingSale) return;
+
+    try {
+      await updateSale(editingSale.id, {
+        customer_id: editForm.customer_id === "walk-in" ? undefined : editForm.customer_id,
+        payment_method: editForm.payment_method,
+        status: editForm.status,
+        items: editForm.items.map(item => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          pieces_sold: item.pieces_sold || 0
+        }))
+      });
+      
+      setEditingSale(null);
+      setEditForm({
+        customer_id: "walk-in",
+        payment_method: 'cash',
+        status: 'completed',
+        items: []
+      });
+    } catch (error) {
+      console.error('Error updating sale:', error);
+    }
+  };
+
+  const addEditItem = () => {
+    setEditForm({
+      ...editForm,
+      items: [...editForm.items, {
+        product_id: '',
+        quantity: 0,
+        unit_price: 0,
+        pieces_sold: 0
+      }]
+    });
+  };
+
+  const removeEditItem = (index: number) => {
+    setEditForm({
+      ...editForm,
+      items: editForm.items.filter((_, i) => i !== index)
+    });
+  };
+
+  const updateEditItem = (index: number, field: string, value: any) => {
+    const updatedItems = [...editForm.items];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    
+    // Auto-fill price when product is selected
+    if (field === 'product_id' && value) {
+      const product = inventory.find(p => p.id === value);
+      if (product) {
+        updatedItems[index].unit_price = product.selling_price;
+        updatedItems[index].product_name = product.name;
+      }
+    }
+    
+    setEditForm({
+      ...editForm,
+      items: updatedItems
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -188,12 +308,7 @@ export default function Sales() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            toast({
-                              title: 'Edit functionality',
-                              description: 'Sales editing coming soon!',
-                            });
-                          }}
+                          onClick={() => handleEdit(sale)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -231,6 +346,163 @@ export default function Sales() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Sale Dialog */}
+      <Dialog open={!!editingSale} onOpenChange={(open) => !open && setEditingSale(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Sale</DialogTitle>
+            <DialogDescription>
+              Modify the sale details and items. Inventory will be updated accordingly.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="customer">Customer</Label>
+                <Select 
+                  value={editForm.customer_id || "walk-in"} 
+                  onValueChange={(value) => setEditForm({...editForm, customer_id: value === "walk-in" ? "" : value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="walk-in">Walk-in Customer</SelectItem>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="payment_method">Payment Method</Label>
+                <Select 
+                  value={editForm.payment_method} 
+                  onValueChange={(value: 'cash' | 'card' | 'transfer' | 'credit') => 
+                    setEditForm({...editForm, payment_method: value})
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="transfer">Transfer</SelectItem>
+                    <SelectItem value="credit">Credit</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select 
+                  value={editForm.status} 
+                  onValueChange={(value: 'pending' | 'completed' | 'cancelled') => 
+                    setEditForm({...editForm, status: value})
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Sale Items</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addEditItem}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Item
+                </Button>
+              </div>
+              
+              <div className="space-y-2">
+                {editForm.items.map((item, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 border rounded">
+                    <div>
+                      <Select 
+                        value={item.product_id} 
+                        onValueChange={(value) => updateEditItem(index, 'product_id', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {inventory.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Input
+                      type="number"
+                      placeholder="Quantity (kg)"
+                      value={item.quantity || ''}
+                      onChange={(e) => updateEditItem(index, 'quantity', Number(e.target.value))}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Unit Price"
+                      value={item.unit_price || ''}
+                      onChange={(e) => updateEditItem(index, 'unit_price', Number(e.target.value))}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Pieces"
+                      value={item.pieces_sold || ''}
+                      onChange={(e) => updateEditItem(index, 'pieces_sold', Number(e.target.value))}
+                    />
+                    <div className="text-sm font-medium self-center">
+                      ₦{((item.quantity || 0) * (item.unit_price || 0)).toLocaleString()}
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => removeEditItem(index)}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              
+              {editForm.items.length > 0 && (
+                <div className="mt-4 p-3 bg-muted rounded-lg">
+                  <div className="text-lg font-semibold">
+                    Total: ₦{editForm.items.reduce((sum, item) => 
+                      sum + ((item.quantity || 0) * (item.unit_price || 0)), 0
+                    ).toLocaleString()}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingSale(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
