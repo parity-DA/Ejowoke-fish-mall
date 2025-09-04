@@ -84,6 +84,7 @@ export const useSales = () => {
     }>;
     discount?: number;
     total_amount: number;
+    amount_paid: number;
   }) => {
     if (!user) return;
 
@@ -95,6 +96,7 @@ export const useSales = () => {
           user_id: user.id,
           customer_id: saleData.customer_id,
           total_amount: saleData.total_amount,
+          amount_paid: saleData.amount_paid,
           discount: saleData.discount || 0,
           payment_method: saleData.payment_method,
           status: saleData.status || 'completed'
@@ -367,7 +369,7 @@ export const useSales = () => {
         const restoredPieces = (product.total_pieces || 0) + (item.pieces_sold || 0);
         const { error: stockError } = await supabase
           .from('inventory')
-          .update({
+          .update({ 
             stock_quantity: restoredStock,
             total_pieces: restoredPieces
           })
