@@ -8,6 +8,7 @@ export interface Sale {
   user_id: string;
   customer_id?: string;
   total_amount: number;
+  discount?: number;
   payment_method: 'cash' | 'card' | 'transfer' | 'credit';
   status: 'pending' | 'completed' | 'cancelled';
   created_at: string;
@@ -81,20 +82,20 @@ export const useSales = () => {
       unit_price: number;
       pieces_sold?: number;
     }>;
+    discount?: number;
+    total_amount: number;
   }) => {
     if (!user) return;
 
     try {
-      // Calculate total amount
-      const total_amount = saleData.items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-
       // Create the sale
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert([{
           user_id: user.id,
           customer_id: saleData.customer_id,
-          total_amount,
+          total_amount: saleData.total_amount,
+          discount: saleData.discount || 0,
           payment_method: saleData.payment_method,
           status: saleData.status || 'completed'
         }])
