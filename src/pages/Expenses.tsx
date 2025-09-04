@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { useExpenses } from "@/hooks/useExpenses";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 
 const expenseCategories = [
@@ -24,6 +25,7 @@ const expenseCategories = [
 
 export default function Expenses() {
   const { expenses, loading, addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { isSuperAdmin } = useUserRoles();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -339,19 +341,23 @@ export default function Expenses() {
                       {expense.payment_method}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button variant="ghost" size="sm" onClick={() => updateExpense && updateExpense(expense.id, expense)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => deleteExpense && deleteExpense(expense.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {isSuperAdmin && (
+                        <div className="flex justify-end space-x-2">
+                        {/* TODO: The update functionality is not fully implemented.
+                            This currently just re-sends the same object. A dialog form is needed to edit the expense. */}
+                          <Button variant="ghost" size="sm" onClick={() => updateExpense && updateExpense(expense.id, expense)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteExpense && deleteExpense(expense.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
