@@ -342,7 +342,7 @@ export const useSales = () => {
       // First, get the sale items to restore stock
       const { data: saleItems, error: saleItemsError } = await supabase
         .from('sale_items')
-        .select('product_id, quantity')
+        .select('product_id, quantity, pieces_sold')
         .eq('sale_id', id);
 
       if (saleItemsError) throw saleItemsError;
@@ -352,7 +352,7 @@ export const useSales = () => {
         // Get current stock
         const { data: product, error: fetchError } = await supabase
         .from('inventory')
-          .select('stock_quantity')
+          .select('stock_quantity, total_pieces')
           .eq('id', item.product_id)
           .eq('user_id', user.id)
           .single();
@@ -362,11 +362,15 @@ export const useSales = () => {
           continue;
         }
 
-        // Update with restored stock quantity
+        // Update with restored stock quantity and pieces
         const restoredStock = product.stock_quantity + item.quantity;
+        const restoredPieces = (product.total_pieces || 0) + (item.pieces_sold || 0);
         const { error: stockError } = await supabase
           .from('inventory')
-          .update({ stock_quantity: restoredStock })
+          .update({
+            stock_quantity: restoredStock,
+            total_pieces: restoredPieces
+          })
           .eq('id', item.product_id)
           .eq('user_id', user.id);
 
