@@ -23,13 +23,13 @@ export interface StockUpdate {
 
 export const useStock = () => {
   const [stockUpdates, setStockUpdates] = useState<StockUpdate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchStockUpdates = async () => {
+  const fetchStockUpdates = async ({ startDate, endDate }: { startDate: string, endDate: string }) => {
     if (!user) return;
-
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('stock_updates')
@@ -49,7 +49,9 @@ export const useStock = () => {
             cost_price
           )
         `)
-        .order('created_at', { ascending: false });
+        .gte('update_date', startDate)
+        .lte('update_date', endDate)
+        .order('update_date', { ascending: false });
 
       if (error) throw error;
       setStockUpdates(data || []);
@@ -71,7 +73,7 @@ export const useStock = () => {
     pieces_added?: number;
     update_date: string;
   }) => {
-    if (!user) return;
+    if (!user) return { success: false, error: 'Not authenticated' };
 
     try {
       // Start a transaction to update both stock_updates and inventory
@@ -114,14 +116,14 @@ export const useStock = () => {
         description: `Added ${updateData.quantity_added_kg}kg${updateData.pieces_added ? ` (${updateData.pieces_added} pieces)` : ''} to ${currentInventory.name}.`,
       });
 
-      return stockUpdate;
+      return { success: true, data: stockUpdate };
     } catch (error: any) {
       toast({
         title: 'Error updating stock',
         description: error.message,
         variant: 'destructive',
       });
-      throw error;
+      return { success: false, error };
     }
   };
 
@@ -140,18 +142,19 @@ export const useStock = () => {
         title: 'Stock update modified successfully!',
       });
 
-      return data;
+      return { success: true, data };
     } catch (error: any) {
       toast({
         title: 'Error updating stock update',
         description: error.message,
         variant: 'destructive',
       });
-      throw error;
+      return { success: false, error };
     }
   };
 
   const deleteStockUpdate = async (id: string) => {
+    if (!user) return { success: false, error: 'Not authenticated' };
     try {
       // First get the stock update details to reverse the inventory changes
       const { data: stockUpdate, error: fetchError } = await supabase
@@ -186,19 +189,18 @@ export const useStock = () => {
       toast({
         title: 'Stock update deleted successfully!',
       });
+      return { success: true };
     } catch (error: any) {
       toast({
         title: 'Error deleting stock update',
         description: error.message,
         variant: 'destructive',
       });
-      throw error;
+      return { success: false, error };
     }
   };
 
-  useEffect(() => {
-    fetchStockUpdates();
-  }, [user]);
+  // Removed initial data fetch useEffect. The component is now responsible for fetching data.
 
   // Set up real-time subscription
   useEffect(() => {
@@ -213,9 +215,11 @@ export const useStock = () => {
           schema: 'public',
           table: 'stock_updates'
         },
-        () => {
-          // Refetch data to get updated inventory information
-          fetchStockUpdates();
+        (payload) => {
+          // The component is responsible for refetching.
+          // This subscription can be enhanced to notify the component.
+          // For now, we'll just log the change.
+          console.log('Stock update changed:', payload);
         }
       )
       .subscribe();
@@ -231,6 +235,6 @@ export const useStock = () => {
     addStockUpdate,
     updateStockUpdate,
     deleteStockUpdate,
-    refetch: fetchStockUpdates,
+    fetchStockUpdates,
   };
 };
