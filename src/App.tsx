@@ -10,9 +10,9 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import SalesEntry from "./pages/SalesEntry";
 import Sales from "./pages/Sales";
-import Products from "./pages/Products";
+import Inventory from "./pages/Inventory";
+import Stock from "./pages/Stock";
 import Customers from "./pages/Customers";
-import Purchases from "./pages/Purchases";
 import Payments from "./pages/Payments";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
@@ -54,10 +54,17 @@ const App = () => (
                   </Layout>
                 </ProtectedRoute>
               } />
-              <Route path="/products" element={
+              <Route path="/inventory" element={
                 <ProtectedRoute>
                   <Layout>
-                    <Products />
+                    <Inventory />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/stock" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Stock />
                   </Layout>
                 </ProtectedRoute>
               } />
@@ -65,13 +72,6 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <Customers />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/purchases" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Purchases />
                   </Layout>
                 </ProtectedRoute>
               } />
