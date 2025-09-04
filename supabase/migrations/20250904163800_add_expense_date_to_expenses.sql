@@ -1,0 +1,2 @@
+ALTER TABLE public.expenses
+ADD COLUMN expense_date TIMESTAMP WITH TIME ZONE DEFAULT now();

@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { Plus, Receipt, Calendar, TrendingDown, Edit, Trash2, Search } from "lucide-react";
+import { Plus, Receipt, Calendar as CalendarIcon, TrendingDown, Edit, Trash2, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +41,7 @@ export default function Expenses() {
     category: "misc",
     amount: 0,
     payment_method: "cash",
+    expense_date: new Date(),
   });
 
   const filteredExpenses = expenses.filter(expense => {
@@ -70,6 +74,7 @@ export default function Expenses() {
         category: "misc",
         amount: 0,
         payment_method: "cash",
+        expense_date: new Date(),
       });
       setIsAddDialogOpen(false);
     }
@@ -208,6 +213,29 @@ export default function Expenses() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="expense_date">Date of Expense</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(newExpense.expense_date, "PPP")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={newExpense.expense_date}
+                      onSelect={(date) => setNewExpense({ ...newExpense, expense_date: date || new Date() })}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div>

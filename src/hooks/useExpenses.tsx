@@ -13,6 +13,7 @@ export interface Expense {
   payment_method: string;
   created_at: string;
   updated_at: string;
+  expense_date: string;
 }
 
 export const useExpenses = () => {
@@ -58,6 +59,7 @@ export const useExpenses = () => {
         .insert({
           ...expenseData,
           user_id: user.id,
+          expense_date: expenseData.expense_date ? new Date(expenseData.expense_date).toISOString() : new Date().toISOString(),
         });
 
       if (error) {

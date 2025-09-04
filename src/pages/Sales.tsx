@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -8,7 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Edit, Trash2, Search, Plus, Minus, DollarSign } from 'lucide-react';
+import { Eye, Edit, Trash2, Search, Plus, Minus, DollarSign, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { useSales, Sale, SaleWithItems } from '@/hooks/useSales';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useInventory } from '@/hooks/useInventory';
@@ -23,6 +26,8 @@ export default function Sales() {
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [payingSale, setPayingSale] = useState<Sale | null>(null);
   const [paymentAmount, setPaymentAmount] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [editForm, setEditForm] = useState({
     customer_id: '',
     payment_method: 'cash' as 'cash' | 'card' | 'transfer' | 'credit',
@@ -36,18 +41,50 @@ export default function Sales() {
       product_name?: string;
     }>
   });
-  
+
   const { sales, loading, deleteSale, updateSale, recordPayment } = useSales();
   const { customers } = useCustomers();
   const { inventory } = useInventory();
   const { isSuperAdmin } = useUserRoles();
   const { toast } = useToast();
 
-  const filteredSales = sales.filter(sale =>
-    sale.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.payment_method.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.status.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [filterByDate, setFilterByDate] = useState(false);
+
+  const { dailyRevenue, monthlyRevenue, totalSales, totalRevenue, filteredSales } = useMemo(() => {
+    const daily = sales
+      .filter(sale => new Date(sale.created_at).toDateString() === selectedDate.toDateString())
+      .reduce((sum, sale) => sum + sale.total_amount, 0);
+
+    const monthly = sales
+      .filter(sale => {
+        const saleDate = new Date(sale.created_at);
+        return saleDate.getMonth() === currentMonth.getMonth() && saleDate.getFullYear() === currentMonth.getFullYear();
+      })
+      .reduce((sum, sale) => sum + sale.total_amount, 0);
+
+    const total = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
+
+    const filtered = sales.filter(sale => {
+      const searchMatch = sale.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sale.payment_method.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sale.status.toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (filterByDate) {
+        return searchMatch && new Date(sale.created_at).toDateString() === selectedDate.toDateString();
+      }
+      return searchMatch;
+    });
+
+    return { dailyRevenue: daily, monthlyRevenue: monthly, totalSales: sales.length, totalRevenue: total, filteredSales: filtered };
+  }, [sales, selectedDate, currentMonth, searchTerm, filterByDate]);
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentMonth(prev => {
+      const newMonth = new Date(prev);
+      newMonth.setMonth(newMonth.getMonth() + (direction === 'prev' ? -1 : 1));
+      return newMonth;
+    });
+  };
 
   const handleDelete = async (id: string) => {
     try {
@@ -125,7 +162,7 @@ export default function Sales() {
           pieces_sold: item.pieces_sold || 0
         }))
       });
-      
+
       setEditingSale(null);
       setEditForm({
         customer_id: "walk-in",
@@ -160,7 +197,7 @@ export default function Sales() {
   const updateEditItem = (index: number, field: string, value: any) => {
     const updatedItems = [...editForm.items];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
-    
+
     // Auto-fill price when product is selected
     if (field === 'product_id' && value) {
       const product = inventory.find(p => p.id === value);
@@ -169,7 +206,7 @@ export default function Sales() {
         updatedItems[index].product_name = product.name;
       }
     }
-    
+
     setEditForm({
       ...editForm,
       items: updatedItems
@@ -196,7 +233,7 @@ export default function Sales() {
       transfer: 'bg-purple-100 text-purple-800',
       credit: 'bg-orange-100 text-orange-800'
     };
-    
+
     return (
       <Badge variant="outline" className={colors[method as keyof typeof colors]}>
         {method.charAt(0).toUpperCase() + method.slice(1)}
@@ -218,6 +255,35 @@ export default function Sales() {
             Manage and track all sales transactions
           </p>
         </div>
+        <div className="flex items-center space-x-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[240px] justify-start text-left font-normal">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {filterByDate ? format(selectedDate, "PPP") : "Filter by date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <CalendarComponent
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    if (date) {
+                      setSelectedDate(date);
+                      setFilterByDate(true);
+                    }
+                  }}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            <Switch
+              checked={filterByDate}
+              onCheckedChange={setFilterByDate}
+            />
+            <Label htmlFor="filter-by-date" className="text-sm">Filter by date</Label>
+          </div>
       </div>
 
       {/* Summary Cards */}
@@ -227,27 +293,7 @@ export default function Sales() {
             <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{sales.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {sales.filter(sale => sale.status === 'completed').length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {sales.filter(sale => sale.status === 'pending').length}
-            </div>
+            <div className="text-2xl font-bold">{totalSales}</div>
           </CardContent>
         </Card>
         <Card>
@@ -256,7 +302,36 @@ export default function Sales() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ₦{sales.reduce((sum, sale) => sum + sale.total_amount, 0).toLocaleString()}
+              ₦{totalRevenue.toLocaleString()}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Daily Revenue ({format(selectedDate, "MMM d")})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              ₦{dailyRevenue.toLocaleString()}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+            <div className="flex items-center space-x-1">
+              <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => navigateMonth('prev')}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-xs">{format(currentMonth, 'MMM yyyy')}</span>
+              <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => navigateMonth('next')}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              ₦{monthlyRevenue.toLocaleString()}
             </div>
           </CardContent>
         </Card>
@@ -268,7 +343,11 @@ export default function Sales() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Sales History</CardTitle>
-              <CardDescription>View and manage all sales transactions</CardDescription>
+              <CardDescription>
+                {filterByDate
+                  ? `Showing sales for ${format(selectedDate, "PPP")}`
+                  : "Showing all sales"}
+              </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
               <div className="relative">
@@ -286,7 +365,7 @@ export default function Sales() {
         <CardContent>
           {filteredSales.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">No sales found.</p>
+              <p className="text-muted-foreground">No sales found for this date.</p>
             </div>
           ) : (
             <Table>
@@ -469,13 +548,13 @@ export default function Sales() {
               Modify the sale details and items. Inventory will be updated accordingly.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="customer">Customer</Label>
-                <Select 
-                  value={editForm.customer_id || "walk-in"} 
+                <Select
+                  value={editForm.customer_id || "walk-in"}
                   onValueChange={(value) => setEditForm({...editForm, customer_id: value === "walk-in" ? "" : value})}
                 >
                   <SelectTrigger>
@@ -491,12 +570,12 @@ export default function Sales() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <Label htmlFor="payment_method">Payment Method</Label>
-                <Select 
-                  value={editForm.payment_method} 
-                  onValueChange={(value: 'cash' | 'card' | 'transfer' | 'credit') => 
+                <Select
+                  value={editForm.payment_method}
+                  onValueChange={(value: 'cash' | 'card' | 'transfer' | 'credit') =>
                     setEditForm({...editForm, payment_method: value})
                   }
                 >
@@ -511,12 +590,12 @@ export default function Sales() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <Label htmlFor="status">Status</Label>
-                <Select 
-                  value={editForm.status} 
-                  onValueChange={(value: 'pending' | 'completed' | 'cancelled') => 
+                <Select
+                  value={editForm.status}
+                  onValueChange={(value: 'pending' | 'completed' | 'cancelled') =>
                     setEditForm({...editForm, status: value})
                   }
                 >
@@ -540,13 +619,13 @@ export default function Sales() {
                   Add Item
                 </Button>
               </div>
-              
+
               <div className="space-y-2">
                 {editForm.items.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 border rounded">
                     <div>
-                      <Select 
-                        value={item.product_id} 
+                      <Select
+                        value={item.product_id}
                         onValueChange={(value) => updateEditItem(index, 'product_id', value)}
                       >
                         <SelectTrigger>
@@ -582,10 +661,10 @@ export default function Sales() {
                     <div className="text-sm font-medium self-center">
                       ₦{((item.quantity || 0) * (item.unit_price || 0)).toLocaleString()}
                     </div>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => removeEditItem(index)}
                     >
                       <Minus className="h-4 w-4" />
@@ -593,11 +672,11 @@ export default function Sales() {
                   </div>
                 ))}
               </div>
-              
+
               {editForm.items.length > 0 && (
                 <div className="mt-4 p-3 bg-muted rounded-lg">
                   <div className="text-lg font-semibold">
-                    Total: ₦{editForm.items.reduce((sum, item) => 
+                    Total: ₦{editForm.items.reduce((sum, item) =>
                       sum + ((item.quantity || 0) * (item.unit_price || 0)), 0
                     ).toLocaleString()}
                   </div>
@@ -616,7 +695,7 @@ export default function Sales() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Record Payment Dialog */}
       <Dialog open={!!payingSale} onOpenChange={(open) => !open && setPayingSale(null)}>
         <DialogContent>
