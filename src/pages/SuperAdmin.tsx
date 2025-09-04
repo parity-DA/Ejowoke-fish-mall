@@ -61,18 +61,38 @@ export default function SuperAdmin() {
 
   // Calculate comprehensive metrics - MUST be called before any early returns
   const metrics: SuperAdminMetrics = useMemo(() => {
-    const selectedDateStr = selectedDate.toISOString().split('T')[0];
-    
-    // Filter data by selected date
-    const filteredSales = sales.filter(sale => 
-      sale.created_at.startsWith(selectedDateStr)
-    );
-    const filteredExpenses = expenses.filter(expense => 
-      expense.created_at.startsWith(selectedDateStr)
-    );
+    const targetDate = selectedDate || new Date();
+    const year = targetDate.getFullYear();
+    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const day = String(targetDate.getDate()).padStart(2, '0');
+    const targetDateStr = `${year}-${month}-${day}`;
+
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextYear = nextDay.getFullYear();
+    const nextMonth = String(nextDay.getMonth() + 1).padStart(2, '0');
+    const nextDayNum = String(nextDay.getDate()).padStart(2, '0');
+    const nextDayStr = `${nextYear}-${nextMonth}-${nextDayNum}`;
+
+    const startOfDay = new Date(targetDateStr + 'T00:00:00');
+    const endOfDay = new Date(nextDayStr + 'T00:00:00');
+
+    // Filter data by selected date range
+    const filteredSales = sales.filter(sale => {
+      const saleDate = new Date(sale.created_at);
+      return saleDate >= startOfDay && saleDate < endOfDay;
+    });
+
+    const filteredExpenses = expenses.filter(expense => {
+      const expenseDate = new Date(expense.created_at);
+      return expenseDate >= startOfDay && expenseDate < endOfDay;
+    });
+
     const filteredSaleItems = saleItems.filter(item => {
       const saleForItem = sales.find(sale => sale.id === item.sale_id);
-      return saleForItem && saleForItem.created_at.startsWith(selectedDateStr);
+      if (!saleForItem) return false;
+      const saleDate = new Date(saleForItem.created_at);
+      return saleDate >= startOfDay && saleDate < endOfDay;
     });
 
     const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.total_amount, 0);
