@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStock } from '@/hooks/useStock';
 import { useInventory } from '@/hooks/useInventory';
+import { useUserRoles } from '@/hooks/useUserRoles';
 import { Plus, Package, TrendingUp, Calendar, Download, DollarSign, Weight, ShoppingBasket, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
@@ -18,6 +19,7 @@ import 'react-day-picker/dist/style.css';
 export default function Stock() {
   const { stockUpdates, loading, addStockUpdate, deleteStockUpdate, fetchStockUpdates } = useStock();
   const { inventory } = useInventory();
+  const { isSuperAdmin } = useUserRoles();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [month, setMonth] = useState(new Date());
@@ -255,29 +257,31 @@ export default function Stock() {
                   <TableCell>{update.quantity_added_kg}kg</TableCell>
                   <TableCell>{update.pieces_added || '-'}</TableCell>
                   <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Stock Update</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this stock update? This will also reverse the inventory changes. This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteUpdate(update.id)}>
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                    {isSuperAdmin && (
+                      <div className="flex items-center space-x-2">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Stock Update</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete this stock update? This will also reverse the inventory changes. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteUpdate(update.id)}>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
