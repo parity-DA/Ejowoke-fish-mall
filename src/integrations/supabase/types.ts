@@ -143,6 +143,69 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory: {
+        Row: {
+          barcode: string | null
+          category: string | null
+          cost_price: number
+          created_at: string | null
+          description: string | null
+          id: string
+          minimum_stock: number
+          minimum_stock_kg: number | null
+          name: string
+          selling_price: number
+          size: string | null
+          specie: string | null
+          stock_quantity: number
+          total_kg_supplied: number | null
+          total_pieces: number | null
+          total_pieces_supplied: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          category?: string | null
+          cost_price?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          minimum_stock?: number
+          minimum_stock_kg?: number | null
+          name: string
+          selling_price?: number
+          size?: string | null
+          specie?: string | null
+          stock_quantity?: number
+          total_kg_supplied?: number | null
+          total_pieces?: number | null
+          total_pieces_supplied?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          barcode?: string | null
+          category?: string | null
+          cost_price?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          minimum_stock?: number
+          minimum_stock_kg?: number | null
+          name?: string
+          selling_price?: number
+          size?: string | null
+          specie?: string | null
+          stock_quantity?: number
+          total_kg_supplied?: number | null
+          total_pieces?: number | null
+          total_pieces_supplied?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -182,51 +245,6 @@ export type Database = {
         }
         Relationships: []
       }
-      products: {
-        Row: {
-          barcode: string | null
-          category: string | null
-          cost_price: number
-          created_at: string | null
-          description: string | null
-          id: string
-          minimum_stock: number
-          name: string
-          selling_price: number
-          stock_quantity: number
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          barcode?: string | null
-          category?: string | null
-          cost_price?: number
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          minimum_stock?: number
-          name: string
-          selling_price?: number
-          stock_quantity?: number
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          barcode?: string | null
-          category?: string | null
-          cost_price?: number
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          minimum_stock?: number
-          name?: string
-          selling_price?: number
-          stock_quantity?: number
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           created_at: string | null
@@ -257,85 +275,11 @@ export type Database = {
         }
         Relationships: []
       }
-      purchase_items: {
-        Row: {
-          created_at: string | null
-          id: string
-          product_id: string
-          purchase_id: string
-          quantity: number
-          total_cost: number
-          unit_cost: number
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          product_id: string
-          purchase_id: string
-          quantity?: number
-          total_cost?: number
-          unit_cost?: number
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          product_id?: string
-          purchase_id?: string
-          quantity?: number
-          total_cost?: number
-          unit_cost?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "purchase_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_items_purchase_id_fkey"
-            columns: ["purchase_id"]
-            isOneToOne: false
-            referencedRelation: "purchases"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      purchases: {
-        Row: {
-          created_at: string | null
-          id: string
-          status: string | null
-          supplier_name: string
-          total_amount: number
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          status?: string | null
-          supplier_name: string
-          total_amount?: number
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          status?: string | null
-          supplier_name?: string
-          total_amount?: number
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       sale_items: {
         Row: {
           created_at: string | null
           id: string
+          pieces_sold: number | null
           product_id: string
           quantity: number
           sale_id: string
@@ -345,6 +289,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          pieces_sold?: number | null
           product_id: string
           quantity?: number
           sale_id: string
@@ -354,6 +299,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          pieces_sold?: number | null
           product_id?: string
           quantity?: number
           sale_id?: string
@@ -365,7 +311,7 @@ export type Database = {
             foreignKeyName: "sale_items_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
-            referencedRelation: "products"
+            referencedRelation: "inventory"
             referencedColumns: ["id"]
           },
           {
@@ -414,6 +360,122 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock: {
+        Row: {
+          created_at: string | null
+          id: string
+          status: string | null
+          supplier_name: string
+          total_amount: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          status?: string | null
+          supplier_name: string
+          total_amount?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          status?: string | null
+          supplier_name?: string
+          total_amount?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stock_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          inventory_item_id: string
+          quantity: number
+          stock_id: string
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          inventory_item_id: string
+          quantity?: number
+          stock_id: string
+          total_cost?: number
+          unit_cost?: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          inventory_item_id?: string
+          quantity?: number
+          stock_id?: string
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_product_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_purchase_id_fkey"
+            columns: ["stock_id"]
+            isOneToOne: false
+            referencedRelation: "stock"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_updates: {
+        Row: {
+          created_at: string
+          driver_name: string | null
+          id: string
+          inventory_id: string
+          pieces_added: number | null
+          quantity_added_kg: number
+          update_date: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          driver_name?: string | null
+          id?: string
+          inventory_id: string
+          pieces_added?: number | null
+          quantity_added_kg: number
+          update_date: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          driver_name?: string | null
+          id?: string
+          inventory_id?: string
+          pieces_added?: number | null
+          quantity_added_kg?: number
+          update_date?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_updates_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
             referencedColumns: ["id"]
           },
         ]
@@ -487,6 +549,15 @@ export type Database = {
         Args: { assigner_id?: string; new_role: string; target_user_id: string }
         Returns: undefined
       }
+      get_historical_stock_data: {
+        Args: { p_date: string; p_user_id: string }
+        Returns: {
+          closing_stock_value: number
+          opening_stock_value: number
+          stock_in_value: number
+          stock_out_value: number
+        }[]
+      }
       invite_user: {
         Args: {
           invite_email: string
@@ -505,7 +576,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      fish_size: "500g" | "1kg" | "1.5kg" | "2kg" | "2.5kg" | "3kg"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -632,6 +703,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      fish_size: ["500g", "1kg", "1.5kg", "2kg", "2.5kg", "3kg"],
+    },
   },
 } as const
