@@ -155,7 +155,9 @@ export default function SalesEntry() {
           quantity: item.pricingMethod === "per_kg" ? Math.round((item.quantityKg || 0) * 1000) / 1000 : item.quantityPieces || 0,
           unit_price: item.unitPrice,
           pieces_sold: item.totalPiecesSold || 0
-        }))
+        })),
+        discount: discount,
+        total_amount: total
       });
 
       // Reset form
