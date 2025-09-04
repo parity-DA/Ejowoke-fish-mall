@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, CreditCard, Receipt, Search, DollarSign, Edit, Trash2 } from "lucide-react";
+import { Plus, CreditCard, Calendar, Receipt, Search, Filter, DollarSign, Edit, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,8 @@ export default function Payments() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-
-
+  
+  
   const [newPayment, setNewPayment] = useState({
     type: "income",
     amount: 0,
@@ -33,12 +33,12 @@ export default function Payments() {
 
 
   const filteredPayments = payments.filter(payment => {
-    const matchesSearch =
+    const matchesSearch = 
       payment.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.reference_id?.toLowerCase().includes(searchTerm.toLowerCase());
-
+    
     const matchesFilter = filterType === "all" || payment.type === filterType;
-
+    
     return matchesSearch && matchesFilter;
   });
 
@@ -53,7 +53,7 @@ export default function Payments() {
     }
 
     const { error } = await addPayment(newPayment);
-
+    
     if (!error) {
       setNewPayment({
         type: "income",
@@ -109,8 +109,8 @@ export default function Payments() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="payment-type">Payment Type *</Label>
-                <Select
-                  value={newPayment.type}
+                <Select 
+                  value={newPayment.type} 
                   onValueChange={(value) => setNewPayment({ ...newPayment, type: value })}
                 >
                   <SelectTrigger>
@@ -136,8 +136,8 @@ export default function Payments() {
                 </div>
                 <div>
                   <Label htmlFor="method">Payment Method *</Label>
-                  <Select
-                    value={newPayment.payment_method}
+                  <Select 
+                    value={newPayment.payment_method} 
                     onValueChange={(value) => setNewPayment({ ...newPayment, payment_method: value })}
                   >
                     <SelectTrigger>
@@ -356,9 +356,9 @@ export default function Payments() {
                       <Button variant="ghost" size="sm" onClick={() => updatePayment && updatePayment(payment.id, payment)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
                         className="text-destructive hover:text-destructive"
                         onClick={() => deletePayment && deletePayment(payment.id)}
                       >
