@@ -86,6 +86,7 @@ export const useSales = () => {
     discount?: number;
     total_amount: number;
     amount_paid: number;
+    created_at?: string;
   }) => {
     if (!user) return;
 
@@ -101,7 +102,8 @@ export const useSales = () => {
           amount_paid: saleData.amount_paid,
           discount: saleData.discount || 0,
           payment_method: saleData.payment_method,
-          status: saleData.status || 'completed'
+          status: saleData.status || 'completed',
+          created_at: saleData.created_at
         }])
         .select()
         .single();
@@ -124,22 +126,26 @@ export const useSales = () => {
 
       if (itemsError) throw itemsError;
 
-      // Update product stock quantities and pieces
-      for (const item of saleData.items) {
-        // Get current stock first
-        const { data: product, error: fetchError } = await supabase
-          .from('inventory')
-          .select('stock_quantity, total_pieces')
-          .eq('id', item.product_id)
-          .eq('user_id', user.id)
-          .single();
+      // Batch-fetch all products to check stock
+      const productIds = saleData.items.map(item => item.product_id);
+      const { data: products, error: productsError } = await supabase
+        .from('inventory')
+        .select('id, stock_quantity, total_pieces')
+        .in('id', productIds)
+        .eq('user_id', user.id);
 
-        if (fetchError) {
-          console.error('Error fetching product stock:', fetchError);
-          continue;
+      if (productsError) throw productsError;
+
+      const productMap = new Map(products.map(p => [p.id, p]));
+
+      // Validate stock and prepare updates
+      const stockUpdates = [];
+      for (const item of saleData.items) {
+        const product = productMap.get(item.product_id);
+        if (!product) {
+          throw new Error(`Product with ID ${item.product_id} not found.`);
         }
 
-        // Check if there's sufficient stock before proceeding
         if (product.stock_quantity < item.quantity) {
           throw new Error(`Insufficient stock for product. Available: ${product.stock_quantity}kg, Requested: ${item.quantity}kg`);
         }
@@ -148,23 +154,21 @@ export const useSales = () => {
           throw new Error(`Insufficient pieces for product. Available: ${product.total_pieces || 0} pieces, Requested: ${item.pieces_sold || 0} pieces`);
         }
 
-        // Update with new stock quantity and pieces
-        const newStock = Math.max(0, product.stock_quantity - item.quantity);
-        const newPieces = Math.max(0, (product.total_pieces || 0) - (item.pieces_sold || 0));
-        
-        const { error: stockError } = await supabase
-          .from('inventory')
-          .update({ 
-            stock_quantity: newStock,
-            total_pieces: newPieces
-          })
-          .eq('id', item.product_id)
-          .eq('user_id', user.id);
+        stockUpdates.push({
+          id: item.product_id,
+          stock_quantity: Math.max(0, product.stock_quantity - item.quantity),
+          total_pieces: Math.max(0, (product.total_pieces || 0) - (item.pieces_sold || 0)),
+        });
+      }
 
-        if (stockError) {
-          console.error('Error updating stock:', stockError);
-          throw new Error(`Failed to update inventory: ${stockError.message}`);
-        }
+      // Batch-update inventory
+      const { error: stockError } = await supabase
+        .from('inventory')
+        .upsert(stockUpdates);
+
+      if (stockError) {
+        console.error('Error updating stock:', stockError);
+        throw new Error(`Failed to update inventory: ${stockError.message}`);
       }
 
       toast({
@@ -207,30 +211,58 @@ export const useSales = () => {
 
       if (originalError) throw originalError;
 
-      // Revert inventory changes from original sale
+      // --- Inventory Reconciliation ---
+      // 1. Get all unique product IDs from both old and new sale items
+      const productIds = Array.from(new Set([
+        ...(originalSale || []).map(item => item.product_id),
+        ...saleData.items.map(item => item.product_id)
+      ]));
+
+      // 2. Batch-fetch all relevant products
+      const { data: products, error: productsError } = await supabase
+        .from('inventory')
+        .select('id, stock_quantity, total_pieces')
+        .in('id', productIds)
+        .eq('user_id', user.id);
+
+      if (productsError) throw productsError;
+
+      const productMap = new Map(products.map(p => [p.id, {
+        stock_quantity: p.stock_quantity,
+        total_pieces: p.total_pieces || 0
+      }]));
+
+      // 3. Revert original quantities
       for (const originalItem of originalSale || []) {
-        const { data: product, error: fetchError } = await supabase
-          .from('inventory')
-          .select('stock_quantity, total_pieces')
-          .eq('id', originalItem.product_id)
-          .eq('user_id', user.id)
-          .single();
-
-        if (fetchError) continue;
-
-        // Add back the original quantities
-        const restoredStock = product.stock_quantity + originalItem.quantity;
-        const restoredPieces = (product.total_pieces || 0) + (originalItem.pieces_sold || 0);
-
-        await supabase
-          .from('inventory')
-          .update({ 
-            stock_quantity: restoredStock,
-            total_pieces: restoredPieces
-          })
-          .eq('id', originalItem.product_id)
-          .eq('user_id', user.id);
+        const product = productMap.get(originalItem.product_id);
+        if (product) {
+          product.stock_quantity += originalItem.quantity;
+          product.total_pieces += originalItem.pieces_sold || 0;
+        }
       }
+
+      // 4. Apply new quantities and validate stock
+      for (const newItem of saleData.items) {
+        const product = productMap.get(newItem.product_id);
+        if (!product) {
+          throw new Error(`Product with ID ${newItem.product_id} not found.`);
+        }
+        if (product.stock_quantity < newItem.quantity) {
+          throw new Error(`Insufficient stock for product. Available: ${product.stock_quantity}, Requested: ${newItem.quantity}`);
+        }
+        if (product.total_pieces < (newItem.pieces_sold || 0)) {
+           throw new Error(`Insufficient pieces for product. Available: ${product.total_pieces}, Requested: ${newItem.pieces_sold}`);
+        }
+        product.stock_quantity -= newItem.quantity;
+        product.total_pieces -= newItem.pieces_sold || 0;
+      }
+
+      // 5. Prepare for batch update
+      const stockUpdates = Array.from(productMap.entries()).map(([id, data]) => ({
+        id,
+        stock_quantity: data.stock_quantity,
+        total_pieces: data.total_pieces,
+      }));
 
       // Calculate new total amount
       const total_amount = saleData.items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
@@ -272,29 +304,14 @@ export const useSales = () => {
 
       if (itemsError) throw itemsError;
 
-      // Apply new inventory changes
-      for (const item of saleData.items) {
-        const { data: product, error: fetchError } = await supabase
-          .from('inventory')
-          .select('stock_quantity, total_pieces')
-          .eq('id', item.product_id)
-          .eq('user_id', user.id)
-          .single();
+      // 6. Batch-update inventory
+      const { error: stockError } = await supabase
+        .from('inventory')
+        .upsert(stockUpdates);
 
-        if (fetchError) continue;
-
-        // Subtract new quantities
-        const newStock = Math.max(0, product.stock_quantity - item.quantity);
-        const newPieces = Math.max(0, (product.total_pieces || 0) - (item.pieces_sold || 0));
-
-        await supabase
-          .from('inventory')
-          .update({ 
-            stock_quantity: newStock,
-            total_pieces: newPieces
-          })
-          .eq('id', item.product_id)
-          .eq('user_id', user.id);
+      if (stockError) {
+        console.error('Error updating stock:', stockError);
+        throw new Error(`Failed to update inventory: ${stockError.message}`);
       }
 
       toast({
@@ -353,35 +370,40 @@ export const useSales = () => {
 
       if (saleItemsError) throw saleItemsError;
 
-      // Restore stock for each product
-      for (const item of saleItems || []) {
-        // Get current stock
-        const { data: product, error: fetchError } = await supabase
-        .from('inventory')
-          .select('stock_quantity, total_pieces')
-          .eq('id', item.product_id)
-          .eq('user_id', user.id)
-          .single();
-
-        if (fetchError) {
-          console.error('Error fetching product for stock restoration:', fetchError);
-          continue;
-        }
-
-        // Update with restored stock quantity and pieces
-        const restoredStock = product.stock_quantity + item.quantity;
-        const restoredPieces = (product.total_pieces || 0) + (item.pieces_sold || 0);
-        const { error: stockError } = await supabase
+      // Batch-fetch all products to restore stock
+      const productIds = (saleItems || []).map(item => item.product_id);
+      if (productIds.length > 0) {
+        const { data: products, error: productsError } = await supabase
           .from('inventory')
-          .update({ 
-            stock_quantity: restoredStock,
-            total_pieces: restoredPieces
-          })
-          .eq('id', item.product_id)
+          .select('id, stock_quantity, total_pieces')
+          .in('id', productIds)
           .eq('user_id', user.id);
 
-        if (stockError) {
-          console.error('Error restoring stock:', stockError);
+        if (productsError) throw productsError;
+
+        const productMap = new Map(products.map(p => [p.id, p]));
+        const stockUpdates = [];
+
+        for (const item of saleItems || []) {
+          const product = productMap.get(item.product_id);
+          if (product) {
+            stockUpdates.push({
+              id: item.product_id,
+              stock_quantity: product.stock_quantity + item.quantity,
+              total_pieces: (product.total_pieces || 0) + (item.pieces_sold || 0),
+            });
+          }
+        }
+
+        if (stockUpdates.length > 0) {
+          const { error: stockError } = await supabase
+            .from('inventory')
+            .upsert(stockUpdates);
+
+          if (stockError) {
+            console.error('Error restoring stock:', stockError);
+            // Decide if you want to throw or just log
+          }
         }
       }
 

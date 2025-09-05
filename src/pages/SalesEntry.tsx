@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Minus, ShoppingCart, Calculator } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Calculator, Calendar as CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,9 @@ import { toast } from "@/hooks/use-toast";
 import { useInventory, InventoryItem } from '@/hooks/useInventory';
 import { useCustomers } from "@/hooks/useCustomers";
 import { useSales } from "@/hooks/useSales";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from 'date-fns';
 interface SaleItem {
   id: string;
   productId: string;
@@ -34,6 +37,7 @@ export default function SalesEntry() {
   } = useSales();
   const [items, setItems] = useState<SaleItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  const [saleDate, setSaleDate] = useState<Date | undefined>(new Date());
   const [discount, setDiscount] = useState(0);
   const [amountPaid, setAmountPaid] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -158,7 +162,8 @@ export default function SalesEntry() {
         })),
         discount: discount,
         total_amount: total,
-        amount_paid: amountPaid
+        amount_paid: amountPaid,
+        created_at: saleDate?.toISOString()
       });
 
       // Reset form
@@ -166,15 +171,37 @@ export default function SalesEntry() {
       setSelectedCustomer("");
       setDiscount(0);
       setAmountPaid(0);
+      setSaleDate(new Date());
     } catch (error) {
       console.error('Error saving sale:', error);
     }
   };
   return <div className="p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Sales Entry</h1>
-        <p className="text-muted-foreground">Record new sales transactions</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Sales Entry</h1>
+          <p className="text-muted-foreground">Record new sales transactions</p>
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              className="w-[280px] justify-start text-left font-normal"
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {saleDate ? format(saleDate, "PPP") : <span>Pick a date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={saleDate}
+              onSelect={setSaleDate}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

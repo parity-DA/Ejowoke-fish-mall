@@ -374,6 +374,22 @@ export default function Inventory() {
                       <div className="text-xs text-gray-500">Current Value</div>
                     </div>
                   </div>
+
+                  {/* Prices */}
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    <div className="bg-white rounded-lg p-2 shadow-sm">
+                      <div className="text-sm font-semibold text-red-600">
+                        ₦{item.cost_price.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-500">Cost/kg</div>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 shadow-sm">
+                      <div className="text-sm font-semibold text-green-600">
+                        ₦{item.selling_price.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-500">Sell/kg</div>
+                    </div>
+                  </div>
                   
                   {/* Quick Actions */}
                   <div className="flex gap-1 pt-1">
