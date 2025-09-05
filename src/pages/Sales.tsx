@@ -32,6 +32,7 @@ export default function Sales() {
     customer_id: '',
     payment_method: 'cash' as 'cash' | 'card' | 'transfer' | 'credit',
     status: 'completed' as 'pending' | 'completed' | 'cancelled',
+    created_at: new Date(),
     items: [] as Array<{
       id?: string;
       product_id: string;
@@ -129,6 +130,7 @@ export default function Sales() {
         customer_id: sale.customer_id || "walk-in",
         payment_method: sale.payment_method,
         status: sale.status,
+        created_at: new Date(sale.created_at),
         items: saleItems?.map(item => ({
           id: item.id,
           product_id: item.product_id,
@@ -155,6 +157,7 @@ export default function Sales() {
         customer_id: editForm.customer_id === "walk-in" ? undefined : editForm.customer_id,
         payment_method: editForm.payment_method,
         status: editForm.status,
+        created_at: editForm.created_at.toISOString(),
         items: editForm.items.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -168,6 +171,7 @@ export default function Sales() {
         customer_id: "walk-in",
         payment_method: 'cash',
         status: 'completed',
+        created_at: new Date(),
         items: []
       });
     } catch (error) {
@@ -608,6 +612,35 @@ export default function Sales() {
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="sale_date">Date of Sale</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {format(editForm.created_at, "PPP")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 z-50">
+                    <CalendarComponent
+                      mode="single"
+                      selected={editForm.created_at}
+                      onSelect={(date) => {
+                        if (date) {
+                          setEditForm({ ...editForm, created_at: date });
+                        }
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 

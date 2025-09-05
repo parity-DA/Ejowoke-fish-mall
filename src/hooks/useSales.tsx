@@ -39,7 +39,7 @@ export interface SaleWithItems extends Sale {
 export const useSales = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
 
   const fetchSales = async () => {
@@ -95,6 +95,7 @@ export const useSales = () => {
         .from('sales')
         .insert([{
           user_id: user.id,
+          business_id: profile.business_id,
           customer_id: saleData.customer_id,
           total_amount: saleData.total_amount,
           amount_paid: saleData.amount_paid,
@@ -186,6 +187,7 @@ export const useSales = () => {
     customer_id?: string;
     payment_method: 'cash' | 'card' | 'transfer' | 'credit';
     status?: 'pending' | 'completed' | 'cancelled';
+    created_at?: string;
     items: Array<{
       id?: string;
       product_id: string;
@@ -240,7 +242,8 @@ export const useSales = () => {
           customer_id: saleData.customer_id,
           total_amount,
           payment_method: saleData.payment_method,
-          status: saleData.status || 'completed'
+          status: saleData.status || 'completed',
+          created_at: saleData.created_at
         })
         .eq('id', id)
         .eq('user_id', user.id);

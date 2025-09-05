@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import Expenses from "./pages/Expenses";
 import SuperAdmin from "./pages/SuperAdmin";
 import Auth from "./pages/Auth";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/" element={
                 <ProtectedRoute>
                   <Layout>

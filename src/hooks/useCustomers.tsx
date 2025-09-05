@@ -23,7 +23,7 @@ export interface Customer {
 export const useCustomers = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
 
   const fetchCustomers = async () => {
@@ -58,7 +58,7 @@ export const useCustomers = () => {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .insert([{ ...customerData, user_id: user.id }])
+        .insert([{ ...customerData, user_id: user.id, business_id: profile.business_id }])
         .select()
         .single();
 

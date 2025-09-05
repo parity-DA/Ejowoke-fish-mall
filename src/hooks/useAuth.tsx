@@ -6,11 +6,14 @@ import { useToast } from './use-toast';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  profile: any | null;
   loading: boolean;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
+  updatePassword: (password: string) => Promise<{ error: any }>;
+  updateUserMetadata: (metadata: object) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,18 +29,36 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  const [isPasswordReset, setIsPasswordReset] = useState(false);
+
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        if (session?.user) {
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .single();
+          setProfile(userProfile);
+        } else {
+          setProfile(null);
+        }
         setLoading(false);
-        
-        if (event === 'SIGNED_IN') {
+
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordReset(true);
+        } else if (event === 'SIGNED_IN') {
+          if (isPasswordReset) {
+            window.location.href = '/settings?tab=security';
+            setIsPasswordReset(false);
+          }
           toast({
             title: "Welcome back!",
             description: "You have successfully signed in.",
@@ -51,15 +72,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        const { data: userProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .single();
+        setProfile(userProfile);
+      }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [toast]);
+  }, [toast, isPasswordReset]);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     const redirectUrl = `${window.location.origin}/`;
@@ -88,6 +116,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     }
 
+    return { error };
+  };
+
+  const updateUserMetadata = async (metadata: object) => {
+    const { error } = await supabase.auth.updateUser({ data: metadata });
+    if (error) {
+      toast({
+        title: "Failed to update profile",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+    return { error };
+  };
+
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+      toast({
+        title: "Failed to update password",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Password updated successfully",
+        description: "Your password has been changed.",
+      });
+    }
     return { error };
   };
 
@@ -138,11 +196,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     user,
     session,
+    profile,
     loading,
     signUp,
     signIn,
     signOut,
     resetPassword,
+    updatePassword,
+    updateUserMetadata,
   };
 
   return (
