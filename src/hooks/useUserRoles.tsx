@@ -65,7 +65,7 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUsers = async () => {
     try {
-      // Get all profiles first
+      // Step 1: Get all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
@@ -73,26 +73,43 @@ export const UserRolesProvider = ({ children }: { children: ReactNode }) => {
 
       if (profilesError || !profiles) {
         console.error('Error fetching profiles:', profilesError);
+        toast({ title: "Error", description: "Could not fetch user profiles.", variant: "destructive" });
         return;
       }
 
-      // Get roles for each user
-      const usersWithRoles: UserWithRole[] = [];
-      
-      for (const profile of profiles) {
-        const role = await fetchUserRole(profile.user_id);
-        usersWithRoles.push({
-          id: profile.user_id,
-          email: profile.email,
-          full_name: profile.full_name,
-          role: role,
-          created_at: profile.created_at,
-        });
+      // Step 2: Get all user roles in a single query
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (rolesError) {
+        console.error('Error fetching user roles:', rolesError);
+        toast({ title: "Error", description: "Could not fetch user roles.", variant: "destructive" });
+        // We can still proceed, but users might have default roles
       }
+      
+      // Step 3: Create a map for quick role lookup
+      const roleMap = new Map<string, UserRole>();
+      if (roles) {
+        for (const role of roles) {
+          roleMap.set(role.user_id, role.role as UserRole);
+        }
+      }
+
+      // Step 4: Combine profiles with their roles
+      const usersWithRoles: UserWithRole[] = profiles.map(profile => ({
+        id: profile.user_id,
+        email: profile.email,
+        full_name: profile.full_name,
+        // Default to 'user' if no role is found in the map
+        role: roleMap.get(profile.user_id) || 'user',
+        created_at: profile.created_at,
+      }));
 
       setUsers(usersWithRoles);
     } catch (error) {
       console.error('Error fetching users:', error);
+      toast({ title: "Error", description: "An unexpected error occurred while fetching users.", variant: "destructive" });
     }
   };
 
