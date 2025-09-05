@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { usePayments } from "@/hooks/usePayment";
+import { usePayments, Payment } from "@/hooks/usePayment";
 import { useCustomers } from "@/hooks/useCustomers";
 
 
@@ -19,8 +19,10 @@ export default function Payments() {
   const { customers } = useCustomers();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
-  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+
   
   const [newPayment, setNewPayment] = useState({
     type: "income",
@@ -63,7 +65,39 @@ export default function Payments() {
         description: "",
         category: "",
       });
-      setIsPaymentDialogOpen(false);
+      setIsAddDialogOpen(false);
+    }
+  };
+
+  const handleOpenEditDialog = (payment: Payment) => {
+    setEditingPayment(payment);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdatePayment = async () => {
+    if (!editingPayment) return;
+
+    if (!editingPayment.amount) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in the amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await updatePayment(editingPayment.id, {
+      type: editingPayment.type,
+      amount: editingPayment.amount,
+      payment_method: editingPayment.payment_method,
+      reference_id: editingPayment.reference_id,
+      description: editingPayment.description,
+      category: editingPayment.category,
+    });
+
+    if (!error) {
+      setIsEditDialogOpen(false);
+      setEditingPayment(null);
     }
   };
 
@@ -87,14 +121,14 @@ export default function Payments() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Payments & Credits</h1>
           <p className="text-muted-foreground">Manage payments and customer credits</p>
         </div>
-        <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-primary">
+            <Button className="bg-gradient-primary w-full md:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Record Payment
             </Button>
@@ -123,7 +157,7 @@ export default function Payments() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="amount">Amount (₦) *</Label>
                   <Input
@@ -184,7 +218,7 @@ export default function Payments() {
               </div>
 
               <div className="flex justify-end space-x-2 pt-4">
-                <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Cancel
                 </Button>
                 <Button onClick={handleAddPayment} className="bg-gradient-primary">
@@ -196,8 +230,129 @@ export default function Payments() {
         </Dialog>
       </div>
 
+      {/* Edit Payment Dialog */}
+      {editingPayment && (
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Payment</DialogTitle>
+              <DialogDescription>
+                Update the details of this payment.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-payment-type">Payment Type *</Label>
+                <Select
+                  value={editingPayment.type}
+                  onValueChange={(value) =>
+                    setEditingPayment({ ...editingPayment, type: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="income">Income</SelectItem>
+                    <SelectItem value="expense">Expense</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-amount">Amount (₦) *</Label>
+                  <Input
+                    id="edit-amount"
+                    type="number"
+                    value={editingPayment.amount || ""}
+                    onChange={(e) =>
+                      setEditingPayment({
+                        ...editingPayment,
+                        amount: Number(e.target.value),
+                      })
+                    }
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-method">Payment Method *</Label>
+                  <Select
+                    value={editingPayment.payment_method}
+                    onValueChange={(value) =>
+                      setEditingPayment({ ...editingPayment, payment_method: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="pos">POS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-reference">Reference (Optional)</Label>
+                <Input
+                  id="edit-reference"
+                  value={editingPayment.reference_id || ""}
+                  onChange={(e) =>
+                    setEditingPayment({ ...editingPayment, reference_id: e.target.value })
+                  }
+                  placeholder="e.g., TRF-240831-001"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-category">Category (Optional)</Label>
+                <Input
+                  id="edit-category"
+                  value={editingPayment.category || ""}
+                  onChange={(e) =>
+                    setEditingPayment({ ...editingPayment, category: e.target.value })
+                  }
+                  placeholder="e.g., Sales, Purchases, etc."
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-description">Description (Optional)</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editingPayment.description || ""}
+                  onChange={(e) =>
+                    setEditingPayment({
+                      ...editingPayment,
+                      description: e.target.value,
+                    })
+                  }
+                  placeholder="Additional notes..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdatePayment} className="bg-gradient-primary">
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         <Card className="shadow-card">
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
@@ -252,18 +407,18 @@ export default function Payments() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex space-x-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search payments..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
+            className="pl-9 w-full"
           />
         </div>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
           <SelectContent>
@@ -280,7 +435,7 @@ export default function Payments() {
           <CardTitle>Outstanding Credits</CardTitle>
           <CardDescription>Customer credit balances</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -292,7 +447,7 @@ export default function Payments() {
             <TableBody>
               {customers.filter(c => (c.outstanding_balance || 0) > 0).map((customer) => (
                 <TableRow key={customer.id}>
-                  <TableCell className="font-medium">{customer.name}</TableCell>
+                  <TableCell className="font-medium min-w-[150px]">{customer.name}</TableCell>
                   <TableCell className="text-right">₦{(customer.outstanding_balance || 0).toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">Open</Badge>
@@ -317,7 +472,7 @@ export default function Payments() {
           <CardTitle>Payment History</CardTitle>
           <CardDescription>All recorded payments and repayments</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -347,13 +502,13 @@ export default function Payments() {
                       {payment.payment_method === "cash" ? "Cash" : payment.payment_method === "transfer" ? "Transfer" : "POS"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{payment.reference_id || "-"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="font-mono text-sm min-w-[150px]">{payment.reference_id || "-"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground min-w-[200px]">
                     {payment.description || "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => updatePayment && updatePayment(payment.id, payment)}>
+                      <Button variant="ghost" size="sm" onClick={() => handleOpenEditDialog(payment)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button 
