@@ -6,22 +6,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useStock } from '@/hooks/useStock';
+import { useStock, StockUpdate } from '@/hooks/useStock';
 import { useInventory } from '@/hooks/useInventory';
 import { useUserRoles } from '@/hooks/useUserRoles';
-import { Plus, Package, TrendingUp, Calendar, Download, DollarSign, Weight, ShoppingBasket, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Calendar, DollarSign, Weight, ShoppingBasket, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 
 export default function Stock() {
-  const { stockUpdates, loading, addStockUpdate, deleteStockUpdate, fetchStockUpdates } = useStock();
+  const { stockUpdates, loading, addStockUpdate, updateStockUpdate, deleteStockUpdate, fetchStockUpdates } = useStock();
   const { inventory } = useInventory();
   const { isSuperAdmin } = useUserRoles();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedUpdate, setSelectedUpdate] = useState<StockUpdate | null>(null);
   const [month, setMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -52,6 +54,31 @@ export default function Stock() {
       fetchStockUpdates({ startDate: format(startDate, 'yyyy-MM-dd'), endDate: format(endDate, 'yyyy-MM-dd') });
       setNewUpdate({ inventory_id: '', driver_name: '', quantity_added_kg: 0, pieces_added: 0, update_date: new Date().toISOString().split('T')[0] });
       setIsAddDialogOpen(false);
+    }
+  };
+
+  const handleEditClick = (update: StockUpdate) => {
+    setSelectedUpdate({
+      ...update,
+      update_date: format(parseISO(update.update_date), 'yyyy-MM-dd'),
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedUpdate) return;
+
+    const result = await updateStockUpdate(selectedUpdate.id, {
+      ...selectedUpdate,
+      update_date: new Date(selectedUpdate.update_date).toISOString(),
+    });
+
+    if (result.success) {
+      const startDate = startOfMonth(month);
+      const endDate = endOfMonth(month);
+      fetchStockUpdates({ startDate: format(startDate, 'yyyy-MM-dd'), endDate: format(endDate, 'yyyy-MM-dd') });
+      setIsEditDialogOpen(false);
+      setSelectedUpdate(null);
     }
   };
 
@@ -259,6 +286,9 @@ export default function Stock() {
                   <TableCell>
                     {isSuperAdmin && (
                       <div className="flex items-center space-x-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleEditClick(update)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -292,6 +322,67 @@ export default function Stock() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Stock Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Stock Update</DialogTitle>
+            <DialogDescription>Modify the details of the stock supply.</DialogDescription>
+          </DialogHeader>
+          {selectedUpdate && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Inventory Item</Label>
+                <Input value={selectedUpdate.inventory?.name || ''} disabled />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_quantity_added_kg">Quantity Added (kg)</Label>
+                  <Input
+                    id="edit_quantity_added_kg"
+                    type="number"
+                    step="0.01"
+                    value={selectedUpdate.quantity_added_kg}
+                    onChange={(e) => setSelectedUpdate({ ...selectedUpdate, quantity_added_kg: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_pieces_added">Pieces Added</Label>
+                  <Input
+                    id="edit_pieces_added"
+                    type="number"
+                    value={selectedUpdate.pieces_added || 0}
+                    onChange={(e) => setSelectedUpdate({ ...selectedUpdate, pieces_added: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_driver_name">Driver Name</Label>
+                <Input
+                  id="edit_driver_name"
+                  value={selectedUpdate.driver_name || ''}
+                  onChange={(e) => setSelectedUpdate({ ...selectedUpdate, driver_name: e.target.value })}
+                  placeholder="e.g., John Doe"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_update_date">Supply Date</Label>
+                <Input
+                  id="edit_update_date"
+                  type="date"
+                  value={selectedUpdate.update_date}
+                  onChange={(e) => setSelectedUpdate({ ...selectedUpdate, update_date: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdate}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

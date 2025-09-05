@@ -127,14 +127,18 @@ export const useStock = () => {
     }
   };
 
-  const updateStockUpdate = async (id: string, updates: any) => {
+  const updateStockUpdate = async (id: string, updates: Partial<StockUpdate>) => {
+    if (!user) return { success: false, error: 'Not authenticated' };
+
     try {
-      const { data, error } = await supabase
-        .from('stock_updates')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
+      // RPC call to handle the update atomically
+      const { error } = await supabase.rpc('update_stock_and_inventory', {
+        update_id: id,
+        new_quantity: updates.quantity_added_kg,
+        new_pieces: updates.pieces_added,
+        new_date: updates.update_date,
+        new_driver: updates.driver_name
+      });
 
       if (error) throw error;
 
@@ -142,14 +146,15 @@ export const useStock = () => {
         title: 'Stock update modified successfully!',
       });
 
-      return { success: true, data };
+      return { success: true };
+
     } catch (error: any) {
       toast({
-        title: 'Error updating stock update',
+        title: 'Error updating stock record',
         description: error.message,
         variant: 'destructive',
       });
-      return { success: false, error };
+      return { success: false, error: error.message };
     }
   };
 

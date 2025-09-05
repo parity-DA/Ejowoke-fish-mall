@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
@@ -192,9 +192,14 @@ export const useInventory = () => {
     };
   }, [user]);
 
+  const totalPieces = useMemo(() => {
+    return inventory.reduce((sum, item) => sum + (item.total_pieces || 0), 0);
+  }, [inventory]);
+
   return {
     inventory,
     loading,
+    totalPieces,
     addInventoryItem,
     updateInventoryItem,
     deleteInventoryItem,
