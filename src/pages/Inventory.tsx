@@ -14,9 +14,10 @@ import { Plus, Package, AlertTriangle, TrendingUp, Edit, Trash2 } from 'lucide-r
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export default function Inventory() {
-  const { inventory, loading, addInventoryItem, updateInventoryItem, deleteInventoryItem, refetch } = useInventory();
+  const { inventory, loading, totalPieces, addInventoryItem, updateInventoryItem, deleteInventoryItem, refetch } = useInventory();
   const { isSuperAdmin } = useUserRoles();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -31,11 +32,24 @@ export default function Inventory() {
     barcode: '',
   });
 
-  const filteredInventory = inventory.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.size?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.category?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInventory = inventory.filter(item => {
+    const searchMatch =
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.size?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.category?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (statusFilter === 'all') {
+      return searchMatch;
+    }
+
+    const status = getStockStatus(item).label;
+    const statusMatch =
+      (statusFilter === 'in_stock' && status === 'In Stock') ||
+      (statusFilter === 'low_stock' && status === 'Low Stock') ||
+      (statusFilter === 'out_of_stock' && status === 'Out of Stock');
+
+    return searchMatch && statusMatch;
+  });
 
   const handleAddItem = async () => {
     try {
@@ -226,7 +240,7 @@ export default function Inventory() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
@@ -243,6 +257,15 @@ export default function Inventory() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{getTotalKgAvailable().toLocaleString()} kg</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Pieces</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalPieces.toLocaleString()}</div>
           </CardContent>
         </Card>
         <Card>
@@ -507,14 +530,25 @@ export default function Inventory() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="flex items-center space-x-2">
+      {/* Search and Filters */}
+      <div className="flex items-center space-x-4">
         <Input
           placeholder="Search inventory..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
         />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="in_stock">In Stock</SelectItem>
+            <SelectItem value="low_stock">Low Stock</SelectItem>
+            <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Inventory Table */}
