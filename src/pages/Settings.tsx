@@ -14,17 +14,21 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useAuth } from "@/hooks/useAuth";
 import { useBusinessSettings, BusinessSettings } from "@/hooks/useBusinessSettings";
 
 export default function Settings() {
   const { users, assignRole, inviteUser, deleteUser, isSuperAdmin, fetchUsers } = useUserRoles();
   const { settings: businessSettings, loading: settingsLoading, saveSettings } = useBusinessSettings();
+  const { updatePassword } = useAuth();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [newInvite, setNewInvite] = useState({
     email: "",
     role: "user" as 'super_admin' | 'admin' | 'user'
   });
-  
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   // Local state for business settings form
   const [localBusinessSettings, setLocalBusinessSettings] = useState<BusinessSettings>({
     businessName: "",
@@ -93,6 +97,29 @@ export default function Settings() {
     }
   };
 
+  const handleUpdatePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Passwords do not match",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast({
+        title: "Password is too short",
+        description: "Password must be at least 8 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const { error } = await updatePassword(newPassword);
+    if (!error) {
+      setNewPassword("");
+      setConfirmPassword("");
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -134,8 +161,8 @@ export default function Settings() {
                 </div>
                 <div>
                   <Label htmlFor="currency">Currency</Label>
-                  <Select 
-                    value={localBusinessSettings.currency} 
+                  <Select
+                    value={localBusinessSettings.currency}
                     onValueChange={(value) => setLocalBusinessSettings({ ...localBusinessSettings, currency: value })}
                   >
                     <SelectTrigger>
@@ -252,8 +279,8 @@ export default function Settings() {
                         </div>
                         <div>
                           <Label htmlFor="invite-role">Role *</Label>
-                          <Select 
-                            value={newInvite.role} 
+                          <Select
+                            value={newInvite.role}
                             onValueChange={(value: 'super_admin' | 'admin' | 'user') => setNewInvite({ ...newInvite, role: value })}
                           >
                             <SelectTrigger>
@@ -297,8 +324,8 @@ export default function Settings() {
                         <TableCell className="font-medium">{user.full_name || "N/A"}</TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>
-                          <Select 
-                            value={user.role} 
+                          <Select
+                            value={user.role}
                             onValueChange={(newRole: 'super_admin' | 'admin' | 'user') => handleRoleChange(user.id, newRole)}
                             disabled={!isSuperAdmin}
                           >
@@ -315,7 +342,7 @@ export default function Settings() {
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end space-x-2">
                             <Badge variant={
-                              user.role === "super_admin" ? "default" : 
+                              user.role === "super_admin" ? "default" :
                               user.role === "admin" ? "secondary" : "outline"
                             }>
                               {user.role.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
@@ -334,13 +361,13 @@ export default function Settings() {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Delete User</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Are you sure you want to delete "{user.full_name || user.email}"? 
+                                      Are you sure you want to delete "{user.full_name || user.email}"?
                                       This action cannot be undone and will permanently remove the user from the system.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction 
+                                    <AlertDialogAction
                                       onClick={() => handleDeleteUser(user.id)}
                                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
@@ -395,7 +422,7 @@ export default function Settings() {
                   </div>
                   <Switch
                     checked={notificationSettings.lowStockAlerts}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setNotificationSettings({ ...notificationSettings, lowStockAlerts: checked })
                     }
                   />
@@ -410,7 +437,7 @@ export default function Settings() {
                   </div>
                   <Switch
                     checked={notificationSettings.creditOverdueAlerts}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setNotificationSettings({ ...notificationSettings, creditOverdueAlerts: checked })
                     }
                   />
@@ -425,7 +452,7 @@ export default function Settings() {
                   </div>
                   <Switch
                     checked={notificationSettings.dailySummaryEmail}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setNotificationSettings({ ...notificationSettings, dailySummaryEmail: checked })
                     }
                   />
@@ -440,7 +467,7 @@ export default function Settings() {
                   </div>
                   <Switch
                     checked={notificationSettings.salesNotifications}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setNotificationSettings({ ...notificationSettings, salesNotifications: checked })
                     }
                   />
@@ -470,6 +497,29 @@ export default function Settings() {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Change Password</h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">New Password</Label>
+                    <Input
+                      id="new-password"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Confirm New Password</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={handleUpdatePassword}>Update Password</Button>
+                </div>
+
+                <div className="space-y-4">
                   <h3 className="text-lg font-semibold">Password Policy</h3>
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">• Minimum 8 characters</p>
@@ -478,23 +528,23 @@ export default function Settings() {
                     <p className="text-sm text-muted-foreground">• At least 1 special character</p>
                   </div>
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Session Settings</h3>
-                  <div>
-                    <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
-                    <Select defaultValue="60">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="30">30 minutes</SelectItem>
-                        <SelectItem value="60">1 hour</SelectItem>
-                        <SelectItem value="120">2 hours</SelectItem>
-                        <SelectItem value="480">8 hours</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Session Settings</h3>
+                <div>
+                  <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
+                  <Select defaultValue="60">
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30 minutes</SelectItem>
+                      <SelectItem value="60">1 hour</SelectItem>
+                      <SelectItem value="120">2 hours</SelectItem>
+                      <SelectItem value="480">8 hours</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

@@ -17,7 +17,7 @@ export interface Expense {
 }
 
 export const useExpenses = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +59,7 @@ export const useExpenses = () => {
         .insert({
           ...expenseData,
           user_id: user.id,
+          business_id: profile.business_id,
           expense_date: expenseData.expense_date ? new Date(expenseData.expense_date).toISOString() : new Date().toISOString(),
         });
 

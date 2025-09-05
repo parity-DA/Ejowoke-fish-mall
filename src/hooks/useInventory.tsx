@@ -27,7 +27,7 @@ export interface InventoryItem {
 export const useInventory = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
 
   const fetchInventory = async () => {
@@ -70,6 +70,7 @@ export const useInventory = () => {
         minimum_stock_kg: itemData.minimum_stock_kg,
         barcode: itemData.barcode || null,
         user_id: user.id,
+        business_id: profile.business_id,
         specie: 'Catfish'
       };
 

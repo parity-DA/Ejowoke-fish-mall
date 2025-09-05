@@ -24,7 +24,7 @@ export interface StockUpdate {
 export const useStock = () => {
   const [stockUpdates, setStockUpdates] = useState<StockUpdate[]>([]);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
 
   const fetchStockUpdates = async ({ startDate, endDate }: { startDate: string, endDate: string }) => {
@@ -81,7 +81,8 @@ export const useStock = () => {
         .from('stock_updates')
         .insert([{ 
           ...updateData, 
-          user_id: user.id
+          user_id: user.id,
+          business_id: profile.business_id
         }])
         .select(`
           *,

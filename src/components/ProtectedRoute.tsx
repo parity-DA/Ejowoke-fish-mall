@@ -31,6 +31,11 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
+  // Check for onboarding completion
+  if (!user.user_metadata.full_name && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   // If allowedRoles are specified, check if the user has one of them.
   // The hasRole function in the hook checks for hierarchy (e.g., super_admin has all roles).
   // For this specific route, we want an exact match.
