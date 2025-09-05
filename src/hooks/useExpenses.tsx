@@ -23,13 +23,13 @@ export const useExpenses = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchExpenses = async () => {
-    if (!user) return;
+    if (!user || !profile) return;
 
     try {
       const { data, error } = await supabase
         .from('expenses')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('business_id', profile.business_id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -51,7 +51,7 @@ export const useExpenses = () => {
   };
 
   const addExpense = async (expenseData: Omit<Expense, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
-    if (!user) return { error: 'User not authenticated' };
+    if (!user || !profile) return { error: 'User not authenticated' };
 
     try {
       const { error } = await supabase
@@ -86,14 +86,14 @@ export const useExpenses = () => {
   };
 
   const updateExpense = async (id: string, updates: Partial<Expense>) => {
-    if (!user) return { error: 'User not authenticated' };
+    if (!user || !profile) return { error: 'User not authenticated' };
 
     try {
       const { error } = await supabase
         .from('expenses')
         .update(updates)
         .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('business_id', profile.business_id);
 
       if (error) {
         toast({
@@ -118,14 +118,14 @@ export const useExpenses = () => {
   };
 
   const deleteExpense = async (id: string) => {
-    if (!user) return { error: 'User not authenticated' };
+    if (!user || !profile) return { error: 'User not authenticated' };
 
     try {
       const { error } = await supabase
         .from('expenses')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('business_id', profile.business_id);
 
       if (error) {
         toast({
@@ -150,12 +150,14 @@ export const useExpenses = () => {
   };
 
   useEffect(() => {
-    fetchExpenses();
-  }, [user]);
+    if (profile) {
+      fetchExpenses();
+    }
+  }, [user, profile]);
 
   // Real-time subscriptions
   useEffect(() => {
-    if (!user) return;
+    if (!user || !profile) return;
 
     const channel = supabase
       .channel('expenses-changes')
@@ -165,7 +167,7 @@ export const useExpenses = () => {
           event: '*',
           schema: 'public',
           table: 'expenses',
-          filter: `user_id=eq.${user.id}`,
+          filter: `business_id=eq.${profile.business_id}`,
         },
         () => {
           fetchExpenses();
@@ -176,7 +178,7 @@ export const useExpenses = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, profile]);
 
   return {
     expenses,

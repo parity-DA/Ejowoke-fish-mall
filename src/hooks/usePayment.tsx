@@ -17,19 +17,19 @@ export interface Payment {
 }
 
 export const usePayments = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchPayments = async () => {
-    if (!user) return;
+    if (!user || !profile) return;
 
     try {
       const { data, error } = await supabase
         .from('payments')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('business_id', profile.business_id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -51,7 +51,7 @@ export const usePayments = () => {
   };
 
   const addPayment = async (paymentData: Omit<Payment, 'id' | 'created_at' | 'user_id'>) => {
-    if (!user) return { error: 'User not authenticated' };
+    if (!user || !profile) return { error: 'User not authenticated' };
 
     try {
       const { error } = await supabase
@@ -59,6 +59,7 @@ export const usePayments = () => {
         .insert({
           ...paymentData,
           user_id: user.id,
+          business_id: profile.business_id,
         });
 
       if (error) {
@@ -84,14 +85,14 @@ export const usePayments = () => {
   };
 
   const updatePayment = async (id: string, updates: Partial<Payment>) => {
-    if (!user) return { error: 'User not authenticated' };
+    if (!user || !profile) return { error: 'User not authenticated' };
 
     try {
       const { error } = await supabase
         .from('payments')
         .update(updates)
         .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('business_id', profile.business_id);
 
       if (error) {
         toast({
@@ -116,14 +117,14 @@ export const usePayments = () => {
   };
 
   const deletePayment = async (id: string) => {
-    if (!user) return { error: 'User not authenticated' };
+    if (!user || !profile) return { error: 'User not authenticated' };
 
     try {
       const { error } = await supabase
         .from('payments')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('business_id', profile.business_id);
 
       if (error) {
         toast({
@@ -148,12 +149,14 @@ export const usePayments = () => {
   };
 
   useEffect(() => {
-    fetchPayments();
-  }, [user]);
+    if (profile) {
+      fetchPayments();
+    }
+  }, [user, profile]);
 
   // Real-time subscriptions
   useEffect(() => {
-    if (!user) return;
+    if (!user || !profile) return;
 
     const channel = supabase
       .channel('payments-changes')
@@ -163,7 +166,7 @@ export const usePayments = () => {
           event: '*',
           schema: 'public',
           table: 'payments',
-          filter: `user_id=eq.${user.id}`,
+          filter: `business_id=eq.${profile.business_id}`,
         },
         () => {
           fetchPayments();
@@ -174,7 +177,7 @@ export const usePayments = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, profile]);
 
   return {
     payments,

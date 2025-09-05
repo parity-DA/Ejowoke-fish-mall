@@ -137,14 +137,14 @@ export default function Expenses() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Expenses</h1>
           <p className="text-muted-foreground">Track business expenses and operational costs</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-primary">
+            <Button className="bg-gradient-primary w-full md:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Add Expense
             </Button>
@@ -167,7 +167,7 @@ export default function Expenses() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="amount">Amount (₦) *</Label>
                   <Input
@@ -285,7 +285,7 @@ export default function Expenses() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-amount">Amount (₦) *</Label>
                   <Input
@@ -375,7 +375,7 @@ export default function Expenses() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         <Card className="shadow-card">
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
@@ -434,7 +434,7 @@ export default function Expenses() {
           <CardDescription>Month-to-date spending breakdown</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {expensesByCategory.map((category) => (
               <div key={category.value} className="text-center p-4 bg-muted rounded-lg">
                 <div className="text-2xl mb-2">{category.icon}</div>
@@ -447,18 +447,18 @@ export default function Expenses() {
       </Card>
 
       {/* Search and Filters */}
-      <div className="flex space-x-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search expenses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
+            className="pl-9 w-full"
           />
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Filter by category" />
           </SelectTrigger>
           <SelectContent>
@@ -478,7 +478,7 @@ export default function Expenses() {
           <CardTitle>Expense Records</CardTitle>
           <CardDescription>All recorded business expenses</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -501,7 +501,7 @@ export default function Expenses() {
                         {category?.icon} {category?.label || expense.category}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium min-w-[200px]">
                       <div>{expense.title}</div>
                       {expense.description && (
                         <div className="text-sm text-muted-foreground">{expense.description}</div>
