@@ -401,7 +401,7 @@ export default function Sales() {
                 {filteredSales.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell>
-                      {format(new Date(sale.created_at), 'MMM dd, yyyy HH:mm')}
+                      {format(new Date(sale.created_at), 'PPP')}
                     </TableCell>
                     <TableCell>
                       {sale.customers?.name || 'Walk-in Customer'}
@@ -501,7 +501,7 @@ export default function Sales() {
                 </div>
                 <div>
                   <p className="font-medium">Date</p>
-                  <p className="text-muted-foreground">{format(new Date(viewingSale.created_at), 'MMM dd, yyyy HH:mm')}</p>
+                  <p className="text-muted-foreground">{format(new Date(viewingSale.created_at), 'PPP')}</p>
                 </div>
                 <div>
                   <p className="font-medium">Status</p>
