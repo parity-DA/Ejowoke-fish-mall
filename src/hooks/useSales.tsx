@@ -1,51 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
+import { Database } from '@/integrations/supabase/types';
 
-export interface Sale {
-  id: string;
-  user_id: string;
-  customer_id?: string;
-  total_amount: number;
-  amount_paid?: number;
-  discount?: number;
-  payment_method: 'cash' | 'card' | 'transfer' | 'credit';
-  status: 'pending' | 'completed' | 'cancelled';
-  created_at: string;
-  updated_at: string;
-  customer?: {
-    name: string;
-  };
-}
-
-export interface SaleItem {
-  id: string;
-  sale_id: string;
-  product_id: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-  created_at: string;
-  inventory?: {
-    name: string;
-  };
-}
+type Sale = Database['public']['Tables']['sales']['Row'];
+type SaleItem = Database['public']['Tables']['sale_items']['Row'];
+type SaleItemWithInventory = SaleItem & { inventory: { name: string } | null };
 
 export interface SaleWithItems extends Sale {
-  sale_items: SaleItem[];
+  sale_items: SaleItemWithInventory[];
+  customers: { name: string } | null;
 }
 
 export const useSales = () => {
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [sales, setSales] = useState<SaleWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     if (!user) return;
 
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('sales')
         .select(`
@@ -57,21 +35,18 @@ export const useSales = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setSales(data?.map(sale => ({
-        ...sale,
-        payment_method: sale.payment_method as 'cash' | 'card' | 'transfer' | 'credit',
-        status: sale.status as 'pending' | 'completed' | 'cancelled'
-      })) || []);
-    } catch (error: any) {
+      setSales(data as SaleWithItems[] || []);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error fetching sales',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   const createSale = async (saleData: {
     customer_id?: string;
@@ -88,7 +63,7 @@ export const useSales = () => {
     amount_paid: number;
     created_at?: string;
   }) => {
-    if (!user) return;
+    if (!user || !profile) return;
 
     try {
       // Create the sale
@@ -177,10 +152,11 @@ export const useSales = () => {
       });
 
       return sale;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error creating sale',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -321,10 +297,11 @@ export const useSales = () => {
 
       // Refresh sales data
       fetchSales();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error updating sale',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -332,12 +309,13 @@ export const useSales = () => {
   };
 
   const updateSaleStatus = async (id: string, status: 'pending' | 'completed' | 'cancelled') => {
+    if (!user) return;
     try {
       const { data, error } = await supabase
         .from('sales')
         .update({ status })
         .eq('id', id)
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -348,10 +326,11 @@ export const useSales = () => {
       });
 
       return data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error updating sale',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -431,10 +410,11 @@ export const useSales = () => {
 
       // Refresh the sales list
       fetchSales();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error deleting sale',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -442,8 +422,8 @@ export const useSales = () => {
   };
 
   useEffect(() => {
-    fetchSales();
-  }, [user]);
+    if(user) fetchSales();
+  }, [user, fetchSales]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -468,7 +448,7 @@ export const useSales = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, fetchSales]);
 
   const recordPayment = async (saleId: string, amount: number) => {
     if (!user) return;
@@ -502,10 +482,11 @@ export const useSales = () => {
       });
 
       fetchSales();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error recording payment',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;

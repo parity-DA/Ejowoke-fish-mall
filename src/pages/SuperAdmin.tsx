@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Lock, TrendingUp, DollarSign, Users, Package, AlertTriangle, Eye, BarChart3, PieChart, Activity, Shield, Calendar, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Lock, TrendingUp, DollarSign, Users, Package, AlertTriangle, BarChart3, Shield, Calendar, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,14 @@ import { useCustomers } from "@/hooks/useCustomers";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useStock } from "@/hooks/useStock";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
+
+type SaleItem = Database['public']['Tables']['sale_items']['Row'] & {
+    inventory: {
+        cost_price: number,
+        selling_price: number
+    } | null
+};
 
 interface SuperAdminMetrics {
   totalRevenue: number;
@@ -37,15 +45,14 @@ export default function SuperAdmin() {
   const { inventory } = useInventory();
   const { sales } = useSales();
   const { customers } = useCustomers();
-  const { stockUpdates } = useStock();
+  useStock();
   const { expenses } = useExpenses();
   const [activeTab, setActiveTab] = useState("overview");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
-  const [saleItems, setSaleItems] = useState<any[]>([]);
+  const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // Fetch sale items for profit calculations
   useEffect(() => {
     const fetchSaleItems = async () => {
       const { data } = await supabase
@@ -54,12 +61,11 @@ export default function SuperAdmin() {
           *,
           inventory(cost_price, selling_price)
         `);
-      setSaleItems(data || []);
+      setSaleItems(data as SaleItem[] || []);
     };
     fetchSaleItems();
   }, []);
 
-  // Calculate comprehensive metrics - MUST be called before any early returns
   const metrics: SuperAdminMetrics = useMemo(() => {
     const targetDate = selectedDate || new Date();
     const year = targetDate.getFullYear();
@@ -77,14 +83,13 @@ export default function SuperAdmin() {
     const startOfDay = new Date(targetDateStr + 'T00:00:00');
     const endOfDay = new Date(nextDayStr + 'T00:00:00');
 
-    // Filter data by selected date range
     const filteredSales = sales.filter(sale => {
       const saleDate = new Date(sale.created_at);
       return saleDate >= startOfDay && saleDate < endOfDay;
     });
 
     const filteredExpenses = expenses.filter(expense => {
-      const expenseDate = new Date(expense.created_at);
+      const expenseDate = new Date(expense.expense_date);
       return expenseDate >= startOfDay && expenseDate < endOfDay;
     });
 
@@ -99,7 +104,6 @@ export default function SuperAdmin() {
     const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
     const dailyExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
     
-    // Calculate gross profit based on (selling price - cost price) * kg sold for selected date
     const grossProfit = filteredSaleItems.reduce((profit, item) => {
       const costPrice = item.inventory?.cost_price || 0;
       const sellingPrice = item.inventory?.selling_price || 0;
@@ -107,11 +111,9 @@ export default function SuperAdmin() {
       return profit + (profitPerKg * item.quantity);
     }, 0);
     
-    // Net profit after expenses for selected date
     const netProfit = grossProfit - dailyExpenses;
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
     
-    // Calculate total kg sold for selected date
     const totalKgSold = filteredSaleItems.reduce((sum, item) => sum + item.quantity, 0);
     
     const activeCustomers = customers.filter(customer => 
@@ -147,11 +149,10 @@ export default function SuperAdmin() {
       monthlyGrowth: 12.5, // Mock data
       totalKgSold
     };
-  }, [sales, customers, inventory, expenses, stockUpdates, saleItems, selectedDate]);
+  }, [sales, customers, inventory, expenses, saleItems, selectedDate]);
 
   const handlePasswordSubmit = () => {
-    // In production, this should be more secure
-    const correctPassword = "admin2024"; // This should be stored securely
+    const correctPassword = "admin2024";
     if (password === correctPassword) {
       setIsAuthenticated(true);
       toast({
@@ -228,7 +229,6 @@ export default function SuperAdmin() {
     });
   };
 
-  // Password protection screen
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -281,7 +281,6 @@ export default function SuperAdmin() {
         </Badge>
       </div>
 
-      {/* Date Navigation and Export Controls */}
       <div className="flex items-center justify-between bg-muted/50 p-4 rounded-lg">
         <div className="flex items-center gap-4">
           <Button
@@ -325,7 +324,6 @@ export default function SuperAdmin() {
         </Button>
       </div>
 
-      {/* Key Metrics Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -377,7 +375,6 @@ export default function SuperAdmin() {
         </Card>
       </div>
 
-      {/* Detailed Analytics Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -446,22 +443,15 @@ export default function SuperAdmin() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Stock Updates: {stockUpdates.length}</CardTitle>
+                <CardTitle>Stock Updates</CardTitle>
                 <CardDescription>Total stock update records</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Recent Updates</span>
-                    <Badge variant="outline">{stockUpdates.slice(0, 5).length}</Badge>
                   </div>
                   <div className="space-y-2">
-                    {stockUpdates.slice(0, 3).map((update) => (
-                      <div key={update.id} className="flex items-center justify-between text-sm">
-                        <span className="truncate">{update.inventory?.name}</span>
-                        <span className="text-muted-foreground">+{update.quantity_added_kg}kg</span>
-                      </div>
-                    ))}
                   </div>
                 </div>
               </CardContent>
@@ -492,7 +482,7 @@ export default function SuperAdmin() {
                       <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>Customer #{sale.customer_id?.slice(-4) || 'N/A'}</TableCell>
                       <TableCell>₦{sale.total_amount.toLocaleString()}</TableCell>
-                      <TableCell className="capitalize">{sale.payment_method}</TableCell>
+                      <TableCell>{sale.payment_method}</TableCell>
                       <TableCell>
                         <Badge variant={sale.status === 'completed' ? 'default' : 'secondary'}>
                           {sale.status}
@@ -575,8 +565,8 @@ export default function SuperAdmin() {
                         }
                       </TableCell>
                       <TableCell>
-                        <Badge variant={customer.outstanding_balance && customer.outstanding_balance > 0 ? 'secondary' : 'default'}>
-                          {customer.outstanding_balance && customer.outstanding_balance > 0 ? 'Credit' : 'Active'}
+                        <Badge variant={(customer.outstanding_balance || 0) > 0 ? 'secondary' : 'default'}>
+                          {(customer.outstanding_balance || 0) > 0 ? 'Credit' : 'Active'}
                         </Badge>
                       </TableCell>
                     </TableRow>

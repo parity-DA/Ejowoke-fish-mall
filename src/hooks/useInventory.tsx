@@ -1,28 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
+import { Database } from '@/integrations/supabase/types';
 
-export interface InventoryItem {
-  id: string;
-  specie: string;
-  size?: string | null;
-  name: string;
-  description?: string | null;
-  category?: string | null;
-  cost_price: number; // per kg in ₦
-  selling_price: number; // per kg in ₦
-  stock_quantity: number; // current stock in kg
-  total_kg_supplied: number;
-  total_pieces: number;
-  total_pieces_supplied: number;
-  minimum_stock: number; // deprecated
-  minimum_stock_kg: number; // in kg
-  barcode?: string | null;
-  created_at: string;
-  updated_at: string;
-  user_id: string;
-}
+type InventoryItem = Database['public']['Tables']['inventory']['Row'];
+type InventoryItemInsert = Database['public']['Tables']['inventory']['Insert'];
 
 export const useInventory = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -30,10 +13,11 @@ export const useInventory = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async () => {
     if (!user) return;
 
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('inventory')
         .select('*')
@@ -42,36 +26,26 @@ export const useInventory = () => {
 
       if (error) throw error;
       setInventory(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error fetching inventory',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
-  const addInventoryItem = async (itemData: Omit<InventoryItem, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
-    if (!user) return;
+  const addInventoryItem = async (itemData: Omit<InventoryItem, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'business_id'>) => {
+    if (!user || !profile) return;
 
     try {
-      const insertData: any = {
-        name: itemData.name,
-        size: itemData.size || null,
-        cost_price: itemData.cost_price,
-        selling_price: itemData.selling_price,
-        stock_quantity: itemData.total_kg_supplied,
-        total_kg_supplied: itemData.total_kg_supplied,
-        total_pieces: itemData.total_pieces_supplied,
-        total_pieces_supplied: itemData.total_pieces_supplied,
-        minimum_stock: 0, // deprecated field
-        minimum_stock_kg: itemData.minimum_stock_kg,
-        barcode: itemData.barcode || null,
+      const insertData: InventoryItemInsert = {
+        ...itemData,
         user_id: user.id,
         business_id: profile.business_id,
-        specie: 'Catfish'
       };
 
       const { data, error } = await supabase
@@ -84,14 +58,15 @@ export const useInventory = () => {
 
       toast({
         title: 'Inventory item added successfully!',
-        description: `${data.name} (${data.size}) has been added to your inventory.`,
+        description: `${data.name} has been added to your inventory.`,
       });
 
       return data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error adding inventory item',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -99,12 +74,13 @@ export const useInventory = () => {
   };
 
   const updateInventoryItem = async (id: string, updates: Partial<InventoryItem>) => {
+    if(!user) return;
     try {
       const { data, error } = await supabase
         .from('inventory')
-        .update(updates as any)
+        .update(updates)
         .eq('id', id)
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -116,10 +92,11 @@ export const useInventory = () => {
       });
 
       return data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error updating inventory item',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -127,22 +104,24 @@ export const useInventory = () => {
   };
 
   const deleteInventoryItem = async (id: string) => {
+    if(!user) return;
     try {
       const { error } = await supabase
         .from('inventory')
         .delete()
         .eq('id', id)
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       toast({
         title: 'Inventory item deleted successfully!',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error deleting inventory item',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -150,15 +129,10 @@ export const useInventory = () => {
   };
 
   useEffect(() => {
-    fetchInventory();
-  }, [user]);
-
-  // Force refresh inventory when component mounts or user changes
-  useEffect(() => {
     if (user) {
       fetchInventory();
     }
-  }, [user]);
+  }, [user, fetchInventory]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -182,7 +156,7 @@ export const useInventory = () => {
               item.id === payload.new.id ? payload.new as InventoryItem : item
             ));
           } else if (payload.eventType === 'DELETE') {
-            setInventory(prev => prev.filter(item => item.id !== payload.old.id));
+            setInventory(prev => prev.filter(item => item.id !== (payload.old as {id: string}).id));
           }
         }
       )

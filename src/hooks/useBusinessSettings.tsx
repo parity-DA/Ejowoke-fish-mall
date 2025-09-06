@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
@@ -27,7 +27,7 @@ export const useBusinessSettings = () => {
   });
   const [loading, setLoading] = useState(true);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -58,7 +58,7 @@ export const useBusinessSettings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const saveSettings = async (newSettings: Omit<BusinessSettings, 'id'>) => {
     if (!user) {
@@ -119,8 +119,10 @@ export const useBusinessSettings = () => {
   };
 
   useEffect(() => {
-    fetchSettings();
-  }, [user]);
+    if (user) {
+      fetchSettings();
+    }
+  }, [user, fetchSettings]);
 
   return {
     settings,

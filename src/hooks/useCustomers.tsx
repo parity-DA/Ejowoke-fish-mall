@@ -1,24 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
+import { Database } from '@/integrations/supabase/types';
 
-export interface Customer {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  channel: 'walk-in' | 'retailer' | 'restaurant' | 'wholesaler';
-  credit_limit: number;
-  outstanding_balance: number;
-  total_purchases: number;
-  last_purchase_date?: string;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-  user_id: string;
-}
+type Customer = Database['public']['Tables']['customers']['Row'];
 
 export const useCustomers = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -26,10 +12,11 @@ export const useCustomers = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     if (!user) return;
 
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('customers')
         .select('*')
@@ -37,23 +24,21 @@ export const useCustomers = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCustomers((data || []).map(customer => ({
-        ...customer,
-        channel: customer.channel as 'walk-in' | 'retailer' | 'restaurant' | 'wholesaler'
-      })));
-    } catch (error: any) {
+      setCustomers(data || []);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error fetching customers',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  },[user, toast]);
 
-  const addCustomer = async (customerData: Omit<Customer, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
-    if (!user) return;
+  const addCustomer = async (customerData: Omit<Customer, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'business_id'>) => {
+    if (!user || !profile) return;
 
     try {
       const { data, error } = await supabase
@@ -70,10 +55,11 @@ export const useCustomers = () => {
       });
 
       return data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error adding customer',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -81,12 +67,13 @@ export const useCustomers = () => {
   };
 
   const updateCustomer = async (id: string, updates: Partial<Customer>) => {
+    if (!user) return;
     try {
       const { data, error } = await supabase
         .from('customers')
         .update(updates)
         .eq('id', id)
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -98,10 +85,11 @@ export const useCustomers = () => {
       });
 
       return data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error updating customer',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -109,22 +97,24 @@ export const useCustomers = () => {
   };
 
   const deleteCustomer = async (id: string) => {
+    if (!user) return;
     try {
       const { error } = await supabase
         .from('customers')
         .delete()
         .eq('id', id)
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       toast({
         title: 'Customer deleted successfully!',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error deleting customer',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       throw error;
@@ -132,8 +122,10 @@ export const useCustomers = () => {
   };
 
   useEffect(() => {
-    fetchCustomers();
-  }, [user]);
+    if (user) {
+      fetchCustomers();
+    }
+  }, [user, fetchCustomers]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -157,7 +149,7 @@ export const useCustomers = () => {
               customer.id === payload.new.id ? payload.new as Customer : customer
             ));
           } else if (payload.eventType === 'DELETE') {
-            setCustomers(prev => prev.filter(customer => customer.id !== payload.old.id));
+            setCustomers(prev => prev.filter(customer => customer.id !== (payload.old as { id: string }).id));
           }
         }
       )

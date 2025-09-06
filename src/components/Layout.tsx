@@ -19,7 +19,6 @@ import {
   BarChart3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +44,7 @@ const superAdminNavigation = [
 ];
 
 export function Layout({ children }: LayoutProps) {
+  console.log("Layout component rendered");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const { signOut, user } = useAuth();

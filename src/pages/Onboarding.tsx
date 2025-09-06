@@ -10,7 +10,7 @@ import { Store } from 'lucide-react';
 const Onboarding = () => {
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { user, updateUserMetadata } = useAuth();
+  const { updateUserMetadata } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {

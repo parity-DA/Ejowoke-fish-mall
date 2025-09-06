@@ -13,6 +13,14 @@ import { useSales } from "@/hooks/useSales";
 import { useInventory } from "@/hooks/useInventory";
 import { useCustomers } from "@/hooks/useCustomers";
 
+interface DailySale {
+  date: string;
+  totalSales: number;
+  totalKg: number;
+  totalPieces: number;
+  grossProfit: number;
+}
+
 export default function Reports() {
   const { sales, loading } = useSales();
   const { inventory } = useInventory();
@@ -21,8 +29,7 @@ export default function Reports() {
   const [dateTo, setDateTo] = useState("2024-08-31");
   const [reportType, setReportType] = useState("daily_sales");
   
-  // Process real data for reports
-  const dailySalesData = sales.reduce((acc: any[], sale) => {
+  const dailySalesData = sales.reduce((acc: DailySale[], sale) => {
     const date = new Date(sale.created_at).toDateString();
     const existing = acc.find(d => d.date === date);
     if (existing) {
@@ -39,20 +46,19 @@ export default function Reports() {
     return acc;
   }, []);
 
-  const productPerformance = inventory.map(product => ({
-    productName: product.name,
-    totalRevenue: sales
-      .reduce((sum, sale) => sum + sale.total_amount, 0) / inventory.length, // Simplified calculation
-    totalKg: 0,
-    totalPieces: 0,
-    avgPrice: product.selling_price
-  }));
-
   if (loading) {
     return <div>Loading...</div>;
   }
 
-  const exportToCSV = (data: any[], filename: string) => {
+  const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
+    if (data.length === 0) {
+      toast({
+        title: "Export Canceled",
+        description: "No data available to export.",
+        variant: "destructive",
+      });
+      return;
+    }
     const csvContent = "data:text/csv;charset=utf-8," + 
       Object.keys(data[0]).join(",") + "\n" +
       data.map(row => Object.values(row).join(",")).join("\n");
