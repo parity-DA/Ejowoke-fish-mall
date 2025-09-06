@@ -11,34 +11,42 @@ import { format } from "date-fns";
 
 export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const { stats, loading } = useDashboard(selectedDate);
+  const { stats, loading, error } = useDashboard(selectedDate);
+
+  if (loading || !stats) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error loading dashboard.</div>;
+  }
 
   const kpis = [
     {
       title: format(selectedDate, "MMM d") + " Sales",
-      value: loading ? "..." : `₦${stats.todaySales.toLocaleString()}`,
+      value: `₦${stats.todaySales.toLocaleString()}`,
       change: "+12.5%",
       changeType: "positive" as const,
       icon: DollarSign,
     },
     {
       title: "Stock Sold",
-      value: loading ? "..." : `${stats.stockSoldToday.toLocaleString()} kg`,
-      change: loading ? "..." : `${stats.stockRemainingToday.toLocaleString()} remaining`,
+      value: `${stats.stockSoldToday.toLocaleString()} kg`,
+      change: `${stats.stockRemainingToday.toLocaleString()} remaining`,
       changeType: "positive" as const,
       icon: BarChart3,
     },
     {
       title: "Customers Today",
-      value: loading ? "..." : stats.totalCustomers.toString(),
-      change: loading ? "..." : `${stats.totalCustomers} unique`,
+      value: stats.totalCustomers.toString(),
+      change: `${stats.totalCustomers} unique`,
       changeType: "positive" as const,
       icon: Users,
     },
     {
       title: "Pieces Sold",
-      value: loading ? "..." : `${stats.totalPiecesRemaining.toLocaleString()} pcs`,
-      change: loading ? "..." : `${stats.totalProducts} products sold`,
+      value: `${stats.totalPiecesRemaining.toLocaleString()} pcs`,
+      change: `${stats.totalProducts} products sold`,
       changeType: stats.totalProducts > 0 ? "positive" as const : "secondary" as const,
       icon: Package,
     },
@@ -117,16 +125,14 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {loading ? (
-                <div className="text-center py-4 text-muted-foreground">Loading...</div>
-              ) : stats.recentSales.length === 0 ? (
+              {stats.recentSales.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">No recent sales</div>
               ) : (
                 stats.recentSales.map((sale) => (
                   <div key={sale.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                     <div>
                       <p className="font-medium">{sale.customer_name}</p>
-                      <p className="text-sm text-muted-foreground">#{sale.id.slice(0, 8)} • {new Date(sale.time).toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">#{sale.id.slice(0, 8)} • {format(new Date(sale.time), 'PPP')}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">₦{sale.amount.toLocaleString()}</p>
@@ -152,9 +158,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {loading ? (
-                <div className="text-center py-4 text-muted-foreground">Loading...</div>
-              ) : stats.topProducts.length === 0 ? (
+              {stats.topProducts.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">No product data yet</div>
               ) : (
                 stats.topProducts.map((product, index) => (
@@ -181,7 +185,7 @@ export default function Dashboard() {
       <StockHistoryChart data={stats.dailyStockHistory} />
 
       {/* Alerts Section */}
-      {!loading && stats.lowStockAlerts.length > 0 && (
+      {stats.lowStockAlerts.length > 0 && (
         <Card className="shadow-card border-warning">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-warning">
