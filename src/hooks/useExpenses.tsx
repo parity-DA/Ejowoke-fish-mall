@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
@@ -22,7 +22,7 @@ export const useExpenses = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchExpenses = async () => {
+  const fetchExpenses = useCallback(async () => {
     if (!user || !profile) return;
 
     try {
@@ -48,7 +48,7 @@ export const useExpenses = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, profile, toast]);
 
   const addExpense = async (expenseData: Omit<Expense, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
     if (!user || !profile) return { error: 'User not authenticated' };
@@ -153,7 +153,7 @@ export const useExpenses = () => {
     if (profile) {
       fetchExpenses();
     }
-  }, [user, profile]);
+  }, [profile, fetchExpenses]);
 
   // Real-time subscriptions
   useEffect(() => {
@@ -178,7 +178,7 @@ export const useExpenses = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, profile]);
+  }, [user, profile, fetchExpenses]);
 
   return {
     expenses,

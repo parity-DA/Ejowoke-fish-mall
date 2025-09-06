@@ -7,12 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { useInventory, InventoryItem } from '@/hooks/useInventory';
+import { useInventory } from '@/hooks/useInventory';
 import { useCustomers } from "@/hooks/useCustomers";
 import { useSales } from "@/hooks/useSales";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
+
 interface SaleItem {
   id: string;
   productId: string;
@@ -25,22 +26,18 @@ interface SaleItem {
   lineTotal: number;
   availableStock: string;
 }
+
 export default function SalesEntry() {
-  const {
-    inventory
-  } = useInventory();
-  const {
-    customers
-  } = useCustomers();
-  const {
-    createSale
-  } = useSales();
+  const { inventory } = useInventory();
+  const { customers } = useCustomers();
+  const { createSale } = useSales();
   const [items, setItems] = useState<SaleItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState("");
   const [saleDate, setSaleDate] = useState<Date | undefined>(new Date());
   const [discount, setDiscount] = useState(0);
   const [amountPaid, setAmountPaid] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+
   const addItem = () => {
     const newItem: SaleItem = {
       id: `item-${Date.now()}`,
@@ -56,29 +53,26 @@ export default function SalesEntry() {
     };
     setItems([...items, newItem]);
   };
+
   const removeItem = (id: string) => {
     setItems(items.filter(item => item.id !== id));
   };
-  const updateItem = (id: string, field: keyof SaleItem, value: any) => {
+
+  const updateItem = (id: string, field: keyof SaleItem, value: string | number) => {
     setItems(items.map(item => {
       if (item.id === id) {
-        const updatedItem = {
-          ...item,
-          [field]: value
-        };
+        const updatedItem = { ...item, [field]: value };
 
-        // Auto-populate product details when product is selected
         if (field === "productId") {
           const product = inventory.find(p => p.id === value);
           if (product) {
             updatedItem.productName = product.name;
-            updatedItem.pricingMethod = product.category?.includes('kg') ? "per_kg" : "per_piece";
+            updatedItem.pricingMethod = (product.category?.includes('kg') ? "per_kg" : "per_piece") as "per_kg" | "per_piece";
             updatedItem.unitPrice = product.selling_price;
             updatedItem.availableStock = `${product.stock_quantity}kg, ${product.total_pieces || 0} pcs`;
           }
         }
 
-        // Calculate line total and validate stock
         if (updatedItem.pricingMethod === "per_kg") {
           updatedItem.lineTotal = (updatedItem.quantityKg || 0) * updatedItem.unitPrice;
         } else if (updatedItem.pricingMethod === "per_piece") {
@@ -99,13 +93,11 @@ export default function SalesEntry() {
       const product = inventory.find(p => p.id === item.productId);
       if (!product) continue;
 
-      // Validate kg quantity
       const kgQuantity = item.quantityKg || 0;
       if (kgQuantity > product.stock_quantity) {
         errors.push(`${product.name}: Insufficient stock! Available: ${product.stock_quantity}kg, Requested: ${kgQuantity}kg`);
       }
 
-      // Validate pieces quantity
       const piecesQuantity = item.totalPiecesSold || 0;
       if (piecesQuantity > (product.total_pieces || 0)) {
         errors.push(`${product.name}: Insufficient pieces! Available: ${product.total_pieces || 0} pcs, Requested: ${piecesQuantity} pcs`);
@@ -127,7 +119,6 @@ export default function SalesEntry() {
       return;
     }
 
-    // Validate stock availability
     const stockErrors = validateStock(items);
     if (stockErrors.length > 0) {
       toast({
@@ -138,7 +129,6 @@ export default function SalesEntry() {
       return;
     }
 
-    // Validate that all items have products selected
     const incompleteItems = items.filter(item => !item.productId);
     if (incompleteItems.length > 0) {
       toast({
@@ -166,7 +156,6 @@ export default function SalesEntry() {
         created_at: saleDate?.toISOString()
       });
 
-      // Reset form
       setItems([]);
       setSelectedCustomer("");
       setDiscount(0);
@@ -177,7 +166,6 @@ export default function SalesEntry() {
     }
   };
   return <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Sales Entry</h1>
@@ -205,9 +193,7 @@ export default function SalesEntry() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Sale Form */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Customer Selection */}
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle>Customer Information</CardTitle>
@@ -235,7 +221,6 @@ export default function SalesEntry() {
             </CardContent>
           </Card>
 
-          {/* Items */}
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -360,9 +345,7 @@ export default function SalesEntry() {
           </Card>
         </div>
 
-        {/* Summary Sidebar */}
         <div className="space-y-6">
-          {/* Totals */}
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -390,7 +373,6 @@ export default function SalesEntry() {
             </CardContent>
           </Card>
 
-          {/* Payment */}
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle>Payment Details</CardTitle>
@@ -435,7 +417,6 @@ export default function SalesEntry() {
         </div>
       </div>
 
-      {/* Action Buttons */}
       <div className="flex justify-end space-x-4 pt-6 border-t">
         <Button variant="outline" size="lg">Save Draft</Button>
         <Button onClick={handleSave} size="lg" className="bg-gradient-primary">

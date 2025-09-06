@@ -1,24 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
+import { Database } from '@/integrations/supabase/types';
 
-export interface StockUpdate {
-  id: string;
-  inventory_id: string;
-  driver_name?: string;
-  quantity_added_kg: number;
-  pieces_added?: number;
-  update_date: string;
-  created_at: string;
-  // Joined data from inventory
-  inventory?: {
-    id: string;
-    name: string;
-    size?: string;
-    specie: string;
-    cost_price: number;
-  };
+type StockUpdatePayload = Database['public']['Tables']['stock_updates']['Row'];
+type InventoryItem = Database['public']['Tables']['inventory']['Row'];
+
+export interface StockUpdate extends StockUpdatePayload {
+  inventory: InventoryItem;
 }
 
 export const useStock = () => {
@@ -27,44 +17,30 @@ export const useStock = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
-  const fetchStockUpdates = async ({ startDate, endDate }: { startDate: string, endDate: string }) => {
+  const fetchStockUpdates = useCallback(async ({ startDate, endDate }: { startDate: string, endDate: string }) => {
     if (!user) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('stock_updates')
-        .select(`
-          id,
-          inventory_id, 
-          driver_name,
-          quantity_added_kg,
-          pieces_added,
-          update_date,
-          created_at,
-          inventory:inventory_id (
-            id,
-            name,
-            size,
-            specie,
-            cost_price
-          )
-        `)
+        .select(`*, inventory:inventory_id (*)`)
         .gte('update_date', startDate)
         .lte('update_date', endDate)
         .order('update_date', { ascending: false });
 
       if (error) throw error;
-      setStockUpdates(data || []);
-    } catch (error: any) {
+      setStockUpdates(data as StockUpdate[] || []);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error fetching stock updates',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   const addStockUpdate = async (updateData: {
     inventory_id: string;
@@ -73,10 +49,9 @@ export const useStock = () => {
     pieces_added?: number;
     update_date: string;
   }) => {
-    if (!user) return { success: false, error: 'Not authenticated' };
+    if (!user || !profile) return { success: false, error: 'Not authenticated' };
 
     try {
-      // Start a transaction to update both stock_updates and inventory
       const { data: stockUpdate, error: stockError } = await supabase
         .from('stock_updates')
         .insert([{ 
@@ -84,23 +59,12 @@ export const useStock = () => {
           user_id: user.id,
           business_id: profile.business_id
         }])
-        .select(`
-          *,
-          inventory:inventory_id (
-            id,
-            name,
-            size,
-            specie,
-            stock_quantity,
-            total_pieces
-          )
-        `)
+        .select(`*, inventory:inventory_id (*)`)
         .single();
 
       if (stockError) throw stockError;
 
-      // Update the inventory quantities
-      const currentInventory = stockUpdate.inventory as any;
+      const currentInventory = (stockUpdate as StockUpdate).inventory;
       const { error: inventoryError } = await supabase
         .from('inventory')
         .update({
@@ -118,10 +82,11 @@ export const useStock = () => {
       });
 
       return { success: true, data: stockUpdate };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error updating stock',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       return { success: false, error };
@@ -132,7 +97,6 @@ export const useStock = () => {
     if (!user) return { success: false, error: 'Not authenticated' };
 
     try {
-      // RPC call to handle the update atomically
       const { error } = await supabase.rpc('update_stock_and_inventory', {
         update_id: id,
         new_quantity: updates.quantity_added_kg,
@@ -149,29 +113,28 @@ export const useStock = () => {
 
       return { success: true };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error updating stock record',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
-      return { success: false, error: error.message };
+      return { success: false, error: message };
     }
   };
 
   const deleteStockUpdate = async (id: string) => {
     if (!user) return { success: false, error: 'Not authenticated' };
     try {
-      // First get the stock update details to reverse the inventory changes
       const { data: stockUpdate, error: fetchError } = await supabase
         .from('stock_updates')
-        .select('*, inventory!inner(*)')
+        .select('*, inventory:inventory_id(*)')
         .eq('id', id)
         .single();
 
       if (fetchError) throw fetchError;
 
-      // Delete the stock update
       const { error: deleteError } = await supabase
         .from('stock_updates')
         .delete()
@@ -179,8 +142,7 @@ export const useStock = () => {
 
       if (deleteError) throw deleteError;
 
-      // Reverse the inventory changes
-      const currentInventory = stockUpdate.inventory as any;
+      const currentInventory = (stockUpdate as StockUpdate).inventory;
       const { error: inventoryError } = await supabase
         .from('inventory')
         .update({
@@ -188,7 +150,7 @@ export const useStock = () => {
           total_pieces: Math.max(0, (currentInventory.total_pieces || 0) - (stockUpdate.pieces_added || 0))
         })
         .eq('id', stockUpdate.inventory_id)
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (inventoryError) throw inventoryError;
 
@@ -196,19 +158,17 @@ export const useStock = () => {
         title: 'Stock update deleted successfully!',
       });
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error deleting stock update',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
-      return { success: false, error };
+      return { success: false, error: message };
     }
   };
 
-  // Removed initial data fetch useEffect. The component is now responsible for fetching data.
-
-  // Set up real-time subscription
   useEffect(() => {
     if (!user) return;
 
@@ -221,11 +181,18 @@ export const useStock = () => {
           schema: 'public',
           table: 'stock_updates'
         },
-        (payload) => {
-          // The component is responsible for refetching.
-          // This subscription can be enhanced to notify the component.
-          // For now, we'll just log the change.
-          console.log('Stock update changed:', payload);
+        () => {
+          // Refetch data when changes occur
+          // This is a simplified approach. For a more robust solution,
+          // you might want to check the payload and update the state directly.
+          const today = new Date();
+          const oneMonthAgo = new Date(today);
+          oneMonthAgo.setMonth(today.getMonth() - 1);
+
+          fetchStockUpdates({
+            startDate: oneMonthAgo.toISOString().split('T')[0],
+            endDate: today.toISOString().split('T')[0]
+          });
         }
       )
       .subscribe();
@@ -233,7 +200,7 @@ export const useStock = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, fetchStockUpdates]);
 
   return {
     stockUpdates,

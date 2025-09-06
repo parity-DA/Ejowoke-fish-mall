@@ -10,10 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCustomers } from "@/hooks/useCustomers";
+import { Database } from "@/integrations/supabase/types";
+
+type Customer = Database['public']['Tables']['customers']['Row'];
+type CustomerChannel = Customer['channel'];
+
 export default function Customers() {
   const {
     customers,
-    loading,
     addCustomer,
     updateCustomer,
     deleteCustomer
@@ -21,24 +25,25 @@ export default function Customers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterChannel, setFilterChannel] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
+  const [newCustomer, setNewCustomer] = useState<Omit<Customer, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'business_id'>>({
     name: "",
     phone: "",
     address: "",
     email: "",
-    channel: "walk-in" as const,
+    channel: "walk-in",
     credit_limit: 0,
     outstanding_balance: 0,
     total_purchases: 0,
+    last_purchase_date: null,
     notes: ""
   });
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) || customer.phone && customer.phone.includes(searchTerm);
+    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) || (customer.phone && customer.phone.includes(searchTerm));
     const matchesChannel = filterChannel === "all" || customer.channel === filterChannel;
     return matchesSearch && matchesChannel;
   });
-  const totalOutstanding = customers.reduce((sum, customer) => sum + customer.outstanding_balance, 0);
-  const customersWithCredit = customers.filter(customer => customer.outstanding_balance > 0).length;
+  const totalOutstanding = customers.reduce((sum, customer) => sum + (customer.outstanding_balance || 0), 0);
+  const customersWithCredit = customers.filter(customer => (customer.outstanding_balance || 0) > 0).length;
   const handleAddCustomer = async () => {
     if (!newCustomer.name) {
       return;
@@ -50,10 +55,11 @@ export default function Customers() {
         phone: "",
         address: "",
         email: "",
-        channel: "walk-in" as const,
+        channel: "walk-in",
         credit_limit: 0,
         outstanding_balance: 0,
         total_purchases: 0,
+        last_purchase_date: null,
         notes: ""
       });
       setIsAddDialogOpen(false);
@@ -61,12 +67,12 @@ export default function Customers() {
       console.error('Error adding customer:', error);
     }
   };
-  const channelColors = {
+  const channelColors: Record<NonNullable<CustomerChannel>, "default" | "secondary" | "outline"> = {
     "walk-in": "default",
     "retailer": "secondary",
     "restaurant": "outline",
     "wholesaler": "default"
-  } as const;
+  };
   return <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -115,9 +121,9 @@ export default function Customers() {
 
                 <div>
                   <Label htmlFor="channel">Customer Type</Label>
-                  <Select value={newCustomer.channel} onValueChange={value => setNewCustomer({
+                  <Select value={newCustomer.channel || "walk-in"} onValueChange={value => setNewCustomer({
                 ...newCustomer,
-                channel: value as any
+                channel: value as CustomerChannel
               })}>
                     <SelectTrigger>
                       <SelectValue />
@@ -132,13 +138,13 @@ export default function Customers() {
                 </div>
                 <div>
                   <Label htmlFor="credit-limit">Credit Limit (₦)</Label>
-                  <Input id="credit-limit" type="number" value={newCustomer.credit_limit || ""} onChange={e => setNewCustomer({
+                  <Input id="credit-limit" type="number" value={newCustomer.credit_limit || 0} onChange={e => setNewCustomer({
                 ...newCustomer,
                 credit_limit: Number(e.target.value)
               })} />
                 </div>
 
-              
+
 
               <div className="flex justify-end space-x-2 pt-4">
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -270,20 +276,20 @@ export default function Customers() {
                       </div>}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={channelColors[customer.channel]}>
+                    {customer.channel && <Badge variant={channelColors[customer.channel]}>
                       {customer.channel.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </Badge>
+                    </Badge>}
                   </TableCell>
                   <TableCell className="text-right">
-                    {customer.credit_limit > 0 ? `₦${customer.credit_limit.toLocaleString()}` : "No Credit"}
+                    {(customer.credit_limit || 0) > 0 ? `₦${(customer.credit_limit || 0).toLocaleString()}` : "No Credit"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className={customer.outstanding_balance > 0 ? "text-warning font-medium" : ""}>
-                      {customer.outstanding_balance > 0 ? `₦${customer.outstanding_balance.toLocaleString()}` : "₦0"}
+                    <span className={(customer.outstanding_balance || 0) > 0 ? "text-warning font-medium" : ""}>
+                      {(customer.outstanding_balance || 0) > 0 ? `₦${(customer.outstanding_balance || 0).toLocaleString()}` : "₦0"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    ₦{customer.total_purchases.toLocaleString()}
+                    ₦{(customer.total_purchases || 0).toLocaleString()}
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">

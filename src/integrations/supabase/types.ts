@@ -542,7 +542,6 @@ export type Database = {
           driver_name?: string | null
           id?: string
           inventory_id?: string
-.
           pieces_added?: number | null
           quantity_added_kg?: number
           update_date?: string

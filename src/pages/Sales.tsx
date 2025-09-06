@@ -12,13 +12,18 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { Eye, Edit, Trash2, Search, Plus, Minus, DollarSign, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { useSales, Sale, SaleWithItems } from '@/hooks/useSales';
+import { useSales, SaleWithItems } from '@/hooks/useSales';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useInventory } from '@/hooks/useInventory';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { Database } from '@/integrations/supabase/types';
+
+type Sale = Database['public']['Tables']['sales']['Row'];
+type SaleItem = Database['public']['Tables']['sale_items']['Row'];
+type SaleItemWithInventory = SaleItem & { inventory: { name: string } | null };
 
 export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,19 +33,25 @@ export default function Sales() {
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [editForm, setEditForm] = useState({
-    customer_id: '',
-    payment_method: 'cash' as 'cash' | 'card' | 'transfer' | 'credit',
-    status: 'completed' as 'pending' | 'completed' | 'cancelled',
-    created_at: new Date(),
-    items: [] as Array<{
+  const [editForm, setEditForm] = useState<{
+    customer_id: string;
+    payment_method: 'cash' | 'card' | 'transfer' | 'credit';
+    status: 'pending' | 'completed' | 'cancelled';
+    created_at: Date;
+    items: Array<{
       id?: string;
       product_id: string;
       quantity: number;
       unit_price: number;
       pieces_sold?: number;
       product_name?: string;
-    }>
+    }>;
+  }>({
+    customer_id: '',
+    payment_method: 'cash',
+    status: 'completed',
+    created_at: new Date(),
+    items: []
   });
 
   const { sales, loading, deleteSale, updateSale, recordPayment } = useSales();
@@ -66,9 +77,9 @@ export default function Sales() {
     const total = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
 
     const filtered = sales.filter(sale => {
-      const searchMatch = sale.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const searchMatch = sale.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sale.payment_method.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.status.toLowerCase().includes(searchTerm.toLowerCase());
+        (sale.status && sale.status.toLowerCase().includes(searchTerm.toLowerCase()));
 
       if (filterByDate) {
         return searchMatch && new Date(sale.created_at).toDateString() === selectedDate.toDateString();
@@ -97,16 +108,17 @@ export default function Sales() {
 
   const handleViewDetails = async (sale: Sale) => {
     try {
-      const { data: saleItems, error } = await supabase
+      const { data: saleItems, error: viewError } = await supabase
         .from('sale_items')
         .select('*, inventory(name)')
         .eq('sale_id', sale.id);
 
-      if (error) throw error;
+      if (viewError) throw viewError;
 
       setViewingSale({
         ...sale,
-        sale_items: saleItems || [],
+        sale_items: data as SaleItemWithInventory[] || [],
+        customers: customers.find(c => c.id === sale.customer_id) || null,
       });
     } catch (error) {
       toast({
@@ -118,20 +130,21 @@ export default function Sales() {
   };
 
   const handleEdit = async (sale: Sale) => {
-    // Fetch sale items for this sale
     try {
-      const { data: saleItems } = await supabase
+      const { data: saleItems, error: editError } = await supabase
         .from('sale_items')
         .select('*, inventory(name)')
         .eq('sale_id', sale.id);
 
+      if (editError) throw editError;
+
       setEditingSale(sale);
       setEditForm({
         customer_id: sale.customer_id || "walk-in",
-        payment_method: sale.payment_method,
-        status: sale.status,
+        payment_method: sale.payment_method as 'cash' | 'card' | 'transfer' | 'credit',
+        status: sale.status as 'pending' | 'completed' | 'cancelled',
         created_at: new Date(sale.created_at),
-        items: saleItems?.map(item => ({
+        items: (saleItems as SaleItemWithInventory[])?.map(item => ({
           id: item.id,
           product_id: item.product_id,
           quantity: item.quantity,
@@ -198,11 +211,10 @@ export default function Sales() {
     });
   };
 
-  const updateEditItem = (index: number, field: string, value: any) => {
+  const updateEditItem = (index: number, field: keyof typeof editForm.items[0], value: string | number) => {
     const updatedItems = [...editForm.items];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
 
-    // Auto-fill price when product is selected
     if (field === 'product_id' && value) {
       const product = inventory.find(p => p.id === value);
       if (product) {
@@ -217,7 +229,8 @@ export default function Sales() {
     });
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string | null) => {
+    if(!status) return null;
     switch (status) {
       case 'completed':
         return <Badge variant="default" className="bg-green-500">Completed</Badge>;
@@ -230,7 +243,8 @@ export default function Sales() {
     }
   };
 
-  const getPaymentMethodBadge = (method: string) => {
+  const getPaymentMethodBadge = (method: string | null) => {
+    if(!method) return null;
     const colors = {
       cash: 'bg-green-100 text-green-800',
       card: 'bg-blue-100 text-blue-800',
@@ -390,7 +404,7 @@ export default function Sales() {
                       {format(new Date(sale.created_at), 'MMM dd, yyyy HH:mm')}
                     </TableCell>
                     <TableCell>
-                      {sale.customer?.name || 'Walk-in Customer'}
+                      {sale.customers?.name || 'Walk-in Customer'}
                     </TableCell>
                     <TableCell className="font-medium">
                       ₦{sale.total_amount.toLocaleString()}
@@ -483,7 +497,7 @@ export default function Sales() {
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="font-medium">Customer</p>
-                  <p className="text-muted-foreground">{viewingSale.customer?.name || 'Walk-in Customer'}</p>
+                  <p className="text-muted-foreground">{viewingSale.customers?.name || 'Walk-in Customer'}</p>
                 </div>
                 <div>
                   <p className="font-medium">Date</p>
